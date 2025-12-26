@@ -2,124 +2,209 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>생산 계획 수립 시스템 V12 (Final)</title>
+    <title>PPS AI Intelligence</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f4f7f6; font-family: 'Pretendard', sans-serif; font-size: 12px; }
-        .header-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .github-config { background: #e3f2fd; padding: 15px; border-radius: 8px; border: 1px solid #90caf9; margin-bottom: 20px; }
-        .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow-x: auto; max-height: 600px; }
-        .table thead th { background: #2d3748; color: white; position: sticky; top: 0; z-index: 20; text-align: center; }
-        .sticky-col { position: sticky; left: 0; background: white !important; z-index: 10; border-right: 2px solid #cbd5e0 !important; }
-        .input-plan { width: 75px; text-align: center; border: 2px solid #4299e1; border-radius: 4px; font-weight: 800; }
-        .summary-box { background: #fff; padding: 10px 20px; border-radius: 8px; border: 1px solid #dee2e6; font-weight: bold; }
+        body { background-color: #f4f7fa; font-family: 'Pretendard', sans-serif; font-size: 11px; }
+        .header-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .github-config { background: #e7f5ff; padding: 15px; border-radius: 8px; border: 1px solid #74c0fc; margin-bottom: 15px; }
+        .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow: auto; max-height: 520px; position: relative; }
+        
+        /* 모든 컬럼 가운데 정렬 적용 */
+        .table th, .table td { text-align: center !important; vertical-align: middle !important; white-space: nowrap; }
+        .table thead th { background: #343a40; color: white; position: sticky; top: 0; z-index: 20; }
+        .sticky-col { position: sticky; left: 0; background: white !important; z-index: 10; border-right: 2px solid #dee2e6 !important; }
+        
+        .summary-box { background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6; font-weight: 800; font-size: 13px; }
+        .nav-tabs .nav-link { font-weight: 800; color: #495057; border: none; padding: 10px 20px; }
+        .nav-tabs .nav-link.active { color: #0d6efd; border-bottom: 3px solid #0d6efd; background: transparent; }
+        .group-set { background-color: #f8fafc; font-weight: 600; }
+        .badge-urgent { background-color: #fa5252; color: white; padding: 3px 6px; border-radius: 4px; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .month-selector { display: flex; align-items: center; gap: 10px; background: #fff; padding: 5px 15px; border-radius: 8px; border: 2px solid #0d6efd; }
+        .month-display { font-size: 14px; font-weight: 800; color: #0d6efd; min-width: 90px; text-align: center; }
+        .btn-month { border: none; background: none; color: #0d6efd; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .load-more-btn { width: 100%; padding: 10px; background: #f8f9fa; border: 1px dashed #dee2e6; color: #6c757d; font-weight: bold; cursor: pointer; margin-top: 10px; display: none; }
+        .loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:9999; justify-content:center; align-items:center; flex-direction:column; }
+        .compare-box { font-size: 10px; color: #666; display: block; border-top: 1px solid #eee; margin-top: 2px; }
+        .weighted-val { color: #0d6efd; font-weight: bold; }
     </style>
 </head>
 <body>
+<div id="loading" class="loading-overlay"><div class="spinner-border text-primary"></div><div class="mt-2 fw-bold text-dark">데이터 분석 및 가중치 비교 연산 중...</div></div>
+
 <div class="container-fluid p-4">
     <div class="header-card">
-        <h4 class="fw-bold text-primary mb-3">🏭 생산 계획 수립 시스템 V12 (DB: bschoi-4126/plan)</h4>
+        <h4 class="fw-bold text-primary mb-3">🚀 PPS AI Intelligence</h4>
         
         <div class="github-config row g-3 align-items-center">
-            <div class="col-md-4">
-                <label class="fw-bold mb-1">🔑 GitHub 토큰 (Personal Access Token)</label>
-                <input type="password" id="gh_token" class="form-control form-control-sm" placeholder="ghp_로 시작하는 토큰 입력">
+            <div class="col-md-4"><label class="fw-bold mb-1 small">🔑 GitHub 토큰</label><input type="password" id="gh_token" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><label class="fw-bold mb-1 small">📅 현재 재고 시점</label><input type="month" id="ref_month" class="form-control form-control-sm"></div>
+            <div class="col-md-5 d-flex gap-2 align-items-end">
+                <button class="btn btn-dark btn-sm fw-bold w-100" onclick="saveToGithub()">💾 월별계획 저장</button>
+                <button class="btn btn-outline-dark btn-sm fw-bold w-100" onclick="loadFromGithub()">📂 과거 기록 불러오기</button>
             </div>
-            <div class="col-md-2">
-                <label class="fw-bold mb-1">📅 계획월 선택</label>
-                <input type="month" id="plan_month" class="form-control form-control-sm">
-            </div>
-            <div class="col-md-6 d-flex gap-2 align-items-end">
-                <button class="btn btn-dark btn-sm fw-bold w-100" onclick="saveToGithub()">💾 현재 계획 GitHub 저장</button>
-                <button class="btn btn-outline-dark btn-sm fw-bold w-100" onclick="loadFromGithub()">📂 과거 계획 불러오기</button>
-            </div>
-            <div class="small text-muted mt-1 px-3">* 저장소: <strong>bschoi-4126/plan</strong> 경로에 파일이 자동 생성됩니다.</div>
         </div>
 
-        <div class="row g-3 mt-2">
-            <div class="col-md-3"><label class="fw-bold">1. 판매 데이터</label><input type="file" id="f_sales" class="form-control" multiple></div>
-            <div class="col-md-3"><label class="fw-bold">2. 현재 재고</label><input type="file" id="f_stock" class="form-control"></div>
-            <div class="col-md-3"><label class="fw-bold">3. 작업장 마스터</label><input type="file" id="f_wp" class="form-control"></div>
-            <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100 fw-bold" onclick="runAnalysis()">📊 데이터 통합 분석</button></div>
+        <div class="row g-3 mb-3">
+            <div class="col-md-4"><label class="fw-bold">1. 판매 데이터 (멀티)</label><input type="file" id="f_sales" class="form-control form-control-sm" multiple></div>
+            <div class="col-md-4"><label class="fw-bold">2. 현재 재고 데이터</label><input type="file" id="f_stock" class="form-control form-control-sm"></div>
+            <div class="col-md-4"><label class="fw-bold text-primary">3. 작업장 마스터 (F구분)</label><input type="file" id="f_wp" class="form-control form-control-sm"></div>
         </div>
 
-        <div class="row g-3 align-items-center mt-3 p-3 bg-light rounded border">
-            <div class="col-auto">🇨🇳 중국 배율: <input type="number" id="cfg_china" style="width:50px;" value="2.0"></div>
-            <div class="col-auto">🏢 본사 배율: <input type="number" id="cfg_other" style="width:50px;" value="0.5"></div>
-            <div class="col-auto">📉 최소판매량: <input type="number" id="cfg_min_limit" style="width:50px;" value="1"></div>
-            <div class="col-auto"><button class="btn btn-warning btn-sm fw-bold" onclick="reCalculate()">🔄 설정 적용</button></div>
-            <div class="col-auto ms-auto d-flex gap-1">
-                <input type="text" id="add_code" placeholder="코드" style="width:70px;">
-                <input type="text" id="add_name" placeholder="품목명" style="width:100px;">
-                <select id="add_wp"><option value="중국생산">중국</option><option value="본사">본사</option></select>
-                <button class="btn btn-info btn-sm fw-bold" onclick="addNewItem()">➕ 품목 추가</button>
-            </div>
+        <div class="row g-2 align-items-center p-2 bg-light rounded border">
+            <div class="col-auto">🇨🇳 중국: <input type="number" id="cfg_china" style="width:45px;" value="2.0"></div>
+            <div class="col-auto">🏢 본사: <input type="number" id="cfg_other" style="width:45px;" value="0.5"></div>
+            <div class="col-auto">📉 최소판매: <input type="number" id="cfg_min_limit" style="width:40px;" value="1"></div>
+            <div class="col-auto ms-2 border-start ps-3"><label class="fw-bold text-danger small">🚨 긴급 기준:</label><input type="number" id="cfg_urgent_limit" style="width:45px;" value="0.3" step="0.1"></div>
+            <div class="col-auto ms-auto"><button class="btn btn-primary btn-sm fw-bold" onclick="runAnalysis()">📊 전체 데이터 분석 실행</button></div>
         </div>
     </div>
 
-    <div id="result_area" style="display:none;">
-        <div class="row mb-3 align-items-center">
-            <div class="col-md-2"><select id="sel_wp" class="form-select fw-bold border-primary" onchange="renderDisplay()"></select></div>
-            <div class="col-md-7 d-flex gap-3">
-                <div class="summary-box text-primary" id="sum_qty">총 수량: 0</div>
-                <div class="summary-box text-success" id="sum_amt">총 금액: 0</div>
+    <ul class="nav nav-tabs mb-3" id="planTabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#stock-pane" type="button" onclick="resetLimits()">📊 완제품 현재고 모니터링</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#monthly-pane" type="button" onclick="resetLimits()">📅 월별 확정 계획 수립</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#annual-pane" type="button" onclick="resetLimits(); renderAnnual();">📈 연간 예측 시뮬레이션</button></li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="stock-pane">
+            <div class="row mb-3 align-items-center bg-white p-2 rounded shadow-sm mx-0">
+                <div class="col-md-2"><label class="fw-bold small">작업장</label><select id="s_sel_wp" class="form-select form-select-sm" onchange="renderStock()"><option value="ALL">전체</option></select></div>
+                <div class="col-md-2"><label class="fw-bold small">의뢰구분</label><select id="s_sel_cat" class="form-select form-select-sm" onchange="renderStock()"><option value="ALL">전체</option><option value="계획">계획건</option><option value="주문">주문건</option></select></div>
+                <div class="col-md-2"><label class="fw-bold small text-danger">상태</label><select id="s_sel_status" class="form-select form-select-sm" onchange="renderStock()"><option value="ALL">전체</option><option value="🚨긴급">🚨긴급</option><option value="⚠️주의">⚠️주의</option><option value="정상">정상</option></select></div>
+                <div class="col-md-6 d-flex gap-2 ms-auto justify-content-end">
+                    <div class="summary-box text-success">재고 총액: <span id="s_total_amt">0</span> 원</div>
+                    <div class="summary-box text-danger">긴급 품목: <span id="s_urgent_cnt">0</span> 건</div>
+                </div>
             </div>
-            <div class="col-md-3 text-end"><button class="btn btn-success fw-bold" onclick="downloadExcel()">📥 최종 계획서 다운로드(Excel)</button></div>
+            <div class="table-container">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th class="sticky-col">상태</th><th>코드</th><th>품목명</th><th>규격</th><th>단가</th><th>작업장</th><th>구분</th><th class="table-info">현재고</th><th class="table-info">재고금액</th><th class="bg-warning text-dark">가중평균(vs단순)</th><th>안전재고</th></tr></thead>
+                    <tbody id="stock_body"></tbody>
+                </table>
+                <button id="stock_load_more" class="load-more-btn" onclick="loadMore('stock')">데이터 50개 더 불러오기</button>
+            </div>
         </div>
 
-        <div class="table-container">
-            <table class="table table-hover align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th class="sticky-col">삭제</th>
-                        <th>품목코드</th><th>품목명</th><th>규격</th><th>단가</th><th>작업장</th>
-                        <th class="table-info">현재고</th><th class="table-secondary">평균</th>
-                        <th class="table-warning">적정</th><th class="table-danger">입고예정</th>
-                        <th class="table-primary">계획수량</th><th class="table-primary">계획금액</th>
-                    </tr>
-                </thead>
-                <tbody id="data_body"></tbody>
-            </table>
+        <div class="tab-pane fade" id="monthly-pane">
+            <div class="row mb-3 align-items-center">
+                <div class="col-md-3">
+                    <div class="month-selector"><button class="btn-month" onclick="changeMonth(-1)">◀</button><div id="month_display" class="month-display">선택안됨</div><button class="btn-month" onclick="changeMonth(1)">▶</button><input type="month" id="plan_month" style="display:none;" onchange="syncMonthDisplay()"></div>
+                </div>
+                <div class="col-md-2"><select id="m_sel_wp" class="form-select form-select-sm" onchange="renderMonthly()"></select></div>
+                <div class="col-md-2"><select id="m_sel_cat" class="form-select form-select-sm" onchange="renderMonthly()"><option value="ALL">전체 구분</option><option value="계획">계획건</option><option value="주문">주문건</option></select></div>
+                <div class="col-md-3 d-flex gap-2">
+                    <div class="summary-box text-primary small">수량: <span id="m_sum_qty">0</span> EA</div>
+                    <div class="summary-box text-success small">금액: <span id="m_sum_amt">0</span> 원</div>
+                </div>
+                <div class="col-md-2 text-end"><button class="btn btn-success fw-bold btn-sm w-100" onclick="downloadMonthly()">📥 다운로드</button></div>
+            </div>
+            <div class="table-container">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th class="sticky-col">삭제</th><th>코드</th><th>품목명</th><th>규격</th><th>단가</th><th>구분</th><th class="table-info">현재고</th><th class="bg-warning text-dark">가중평균(vs단순)</th><th class="text-danger">미래소진</th><th>안전재고</th><th class="table-warning">적정재고</th><th class="table-warning">기입고(GH)</th><th class="table-primary">최종계획</th><th>계획금액</th></tr></thead>
+                    <tbody id="monthly_body"></tbody>
+                </table>
+                <button id="monthly_load_more" class="load-more-btn" onclick="loadMore('monthly')">데이터 50개 더 불러오기</button>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="annual-pane">
+            <div class="row mb-3 align-items-center">
+                <div class="col-md-2"><select id="a_sel_wp" class="form-select form-select-sm" onchange="renderAnnual()"></select></div>
+                <div class="col-md-2"><select id="a_sel_cat" class="form-select form-select-sm" onchange="renderAnnual()"><option value="ALL">전체 구분</option><option value="계획">계획건</option><option value="주문">주문건</option></select></div>
+                <div class="col-md-6 d-flex gap-2">
+                    <div class="summary-box">연간 수량: <span id="a_sum_qty">0</span> EA</div>
+                    <div class="summary-box text-success">연간 금액: <span id="a_sum_amt">0</span> 원</div>
+                </div>
+                <div class="col-md-2 text-end"><button class="btn btn-primary fw-bold btn-sm w-100" onclick="downloadAnnual()">📥 연간 다운로드</button></div>
+            </div>
+            <div class="table-container">
+                <table class="table table-hover table-bordered mb-0" style="min-width:1600px;"><thead id="annual_head"></thead><tbody id="annual_body"></tbody></table>
+                <button id="annual_load_more" class="load-more-btn" onclick="loadMore('annual')">데이터 50개 더 불러오기</button>
+            </div>
         </div>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-let rawData = { master: new Map(), sales: {}, stock: {} };
-let processedData = [];
+let rawData = { master: new Map(), salesByYear: {}, stock: {}, fullStockItems: [] };
+let processedData = []; 
+let annualData = [];
+let displayLimits = { stock: 50, monthly: 50, annual: 50 }; 
 const REPO_PATH = "bschoi-4126/plan";
+
+window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('gh_token').value = localStorage.getItem('jemini_gh_token') || "";
+    document.getElementById('ref_month').value = localStorage.getItem('jemini_ref_month') || new Date().toISOString().substring(0, 7);
+    const pm = localStorage.getItem('jemini_plan_month') || new Date().toISOString().substring(0, 7);
+    document.getElementById('plan_month').value = pm;
+    syncMonthDisplay();
+
+    document.getElementById('gh_token').addEventListener('input', (e) => localStorage.setItem('jemini_gh_token', e.target.value));
+    document.getElementById('ref_month').addEventListener('input', (e) => localStorage.setItem('jemini_ref_month', e.target.value));
+});
+
+function syncMonthDisplay() {
+    const val = document.getElementById('plan_month').value;
+    const display = document.getElementById('month_display');
+    if(display) display.innerText = val || "선택안됨";
+    localStorage.setItem('jemini_plan_month', val);
+    if(rawData.master.size > 0) reCalculate();
+}
+
+function changeMonth(diff) {
+    const el = document.getElementById('plan_month');
+    let d = new Date((el.value || new Date().toISOString().substring(0, 7)) + "-01");
+    d.setMonth(d.getMonth() + diff);
+    el.value = d.toISOString().substring(0, 7);
+    syncMonthDisplay();
+}
+
+function resetLimits() { displayLimits = { stock: 50, monthly: 50, annual: 50 }; }
+function loadMore(type) {
+    displayLimits[type] += 100;
+    if(type === 'stock') renderStock(true);
+    else if(type === 'monthly') renderMonthly(true);
+    else if(type === 'annual') renderAnnual(true);
+}
 
 async function runAnalysis() {
     const fSales = document.getElementById('f_sales').files;
     const fStock = document.getElementById('f_stock').files[0];
     const fWp = document.getElementById('f_wp').files[0];
-    if(!fSales.length || !fStock || !fWp) return alert("모든 파일을 업로드해 주세요.");
+    if(!fSales.length || !fStock || !fWp) return;
 
+    document.getElementById('loading').style.display = 'flex';
     try {
         const wpRaw = await readExcel(fWp);
         const stockRaw = await readExcel(fStock);
         
-        rawData.stock = {};
+        rawData.stock = {}; rawData.fullStockItems = [];
         stockRaw.slice(2).forEach(row => {
             const code = String(row[1] || "").trim();
-            if(code) rawData.stock[code] = { price: Number(row[14]) || 0, qty: Number(row[16]) || 0 };
+            if(!code || code === "품목코드") return;
+            const amt = Number(String(row[13] || "0").replace(/,/g, "")) || 0;
+            const qty = Number(String(row[16] || "0").replace(/,/g, "")) || 0;
+            const price = Number(String(row[14] || "0").replace(/,/g, "")) || 0;
+            const itemObj = { code, price, qty, amt, name: String(row[2] || "").trim(), spec: String(row[3] || "").trim() };
+            rawData.stock[code] = itemObj; rawData.fullStockItems.push(itemObj);
         });
 
-        rawData.sales = {};
+        rawData.salesByYear = {};
         for(let f of fSales) {
+            const year = (f.name.match(/\d{4}/) || ["2025"])[0];
             const sRaw = await readExcel(f);
+            if(!rawData.salesByYear[year]) rawData.salesByYear[year] = {};
             for(let i=0; i<sRaw.length; i++){
                 if(String(sRaw[i][5]).includes("생산입고량")) {
                     const code = String(sRaw[i][1]).trim();
                     const nextRow = sRaw[i+1];
                     if(code && nextRow && String(nextRow[5]).includes("매출량")) {
-                        if(!rawData.sales[code]) rawData.sales[code] = [];
-                        [6,8,10,12,14,16,18,20,22,24,26,28].forEach(idx => {
-                            let n = Number(String(nextRow[idx] || "0").replace(/,/g, ""));
-                            if(!isNaN(n)) rawData.sales[code].push(n);
-                        });
+                        rawData.salesByYear[year][code] = [6,8,10,12,14,16,18,20,22,24,26,28].map(idx => Number(String(nextRow[idx] || "0").replace(/,/g, "")) || 0);
                     }
                 }
             }
@@ -130,121 +215,238 @@ async function runAnalysis() {
         wpRaw.slice(6).forEach(row => {
             if(row[3]) lastWp = String(row[3]).trim();
             const code = String(row[7] || "").trim();
-            if(code && code !== "품목코드" && !rawData.master.has(code)) {
-                rawData.master.set(code, { code, wp: lastWp, name: row[8], spec: row[9] });
+            const category = String(row[5] || "").trim() === "계획" ? "계획" : "주문";
+            if(code && code !== "품목코드") {
+                rawData.master.set(code, { code, wp: lastWp, category, name: String(row[8] || "").trim(), spec: String(row[9] || "").trim() });
             }
         });
 
-        reCalculate();
-        document.getElementById('result_area').style.display = 'block';
-        updateWpFilter();
-        alert("분석 완료!");
-    } catch(e) { console.error(e); alert("분석 중 오류 발생"); }
+        await reCalculate();
+    } catch(e) { console.error(e); }
+    document.getElementById('loading').style.display = 'none';
 }
 
-function reCalculate() {
+async function reCalculate() {
+    const refM = document.getElementById('ref_month').value;
+    const planM = document.getElementById('plan_month').value;
     const cRatio = parseFloat(document.getElementById('cfg_china').value) || 2.0;
     const oRatio = parseFloat(document.getElementById('cfg_other').value) || 0.5;
     const minLimit = parseFloat(document.getElementById('cfg_min_limit').value) || 1;
+    const urgentLimit = parseFloat(document.getElementById('cfg_urgent_limit').value) || 0.3;
+
+    const timeline = planM ? await getTimelineGap(refM, planM) : { gap: 0, pendingMap: {} };
 
     processedData = [];
-    rawData.master.forEach((m, code) => {
-        const s = rawData.stock[code] || { price: 0, qty: 0 };
-        const hist = rawData.sales[code] || [];
-        const avg = hist.length ? Math.round(hist.reduce((a,b)=>a+b,0)/hist.length) : 0;
-        if(avg < minLimit) return;
+    const allCodes = [...new Set([...rawData.fullStockItems.map(i=>i.code), ...rawData.master.keys()])];
+
+    allCodes.forEach(code => {
+        const s = rawData.stock[code] || { price: 0, qty: 0, amt: 0, name: "", spec: "" };
+        const m = rawData.master.get(code) || { code, wp: "기타", category: "주문", name: s.name, spec: s.spec };
+        
+        let weightedSum = 0, weightTotal = 0, simpleSum = 0, monthCount = 0;
+        Object.keys(rawData.salesByYear).sort().forEach((year, idx) => {
+            const weight = idx + 1; // 2020:1, 2021:2...
+            const monthly = rawData.salesByYear[year][code] || Array(12).fill(0);
+            const yearSum = monthly.reduce((a,b)=>a+b, 0);
+            weightedSum += (yearSum / 12) * weight;
+            weightTotal += weight;
+            simpleSum += (yearSum / 12);
+            monthCount++;
+        });
+        
+        const weightedAvg = weightTotal > 0 ? Math.round(weightedSum / weightTotal) : 0;
+        const simpleAvg = monthCount > 0 ? Math.round(simpleSum / monthCount) : 0;
 
         const ratio = m.wp.includes("중국") ? cRatio : oRatio;
-        const target = Math.ceil(avg * (ratio + 1));
-        const plan = Math.max(0, target - s.qty);
-        processedData.push({ ...m, price: s.price, stock: s.qty, avg, target, pending: 0, planQty: plan });
+        const target = Math.ceil(weightedAvg * (ratio + 1));
+        const safety = Math.ceil(weightedAvg * ratio);
+        const burn = weightedAvg * Math.max(0, timeline.gap - 1);
+        const pending = timeline.pendingMap[code] || 0;
+
+        const effectiveStock = (m.category === "주문") ? 0 : s.qty;
+        const plan = Math.max(0, (target + burn) - (effectiveStock + pending));
+
+        processedData.push({ 
+            ...m, name: s.name || m.name || "미등록", spec: s.spec || m.spec || "-",
+            price: s.price, stock: s.qty, stockAmt: s.amt, 
+            avg: weightedAvg, simpleAvg: simpleAvg, 
+            burn, safety, target, pending, planQty: plan, 
+            status: (s.qty < weightedAvg * urgentLimit) ? "🚨긴급" : (s.qty < safety ? "⚠️주의" : "정상"), 
+            minLimitMet: (weightedAvg >= minLimit) 
+        });
     });
-    renderDisplay();
+
+    updateFilters(); renderStock(); renderMonthly(); calculateAnnual();
 }
 
-function renderDisplay() {
-    const wp = document.getElementById('sel_wp').value;
-    const body = document.getElementById('data_body');
-    body.innerHTML = "";
-    let tQty = 0, tAmt = 0;
+function renderStock(isLoadMore = false) {
+    const wpF = document.getElementById('s_sel_wp')?.value || "ALL";
+    const catF = document.getElementById('s_sel_cat')?.value || "ALL";
+    const statF = document.getElementById('s_sel_status')?.value || "ALL";
+    const body = document.getElementById('stock_body');
+    if(!body) return;
+    if(!isLoadMore) { body.innerHTML = ""; displayLimits.stock = 50; }
+    
+    const filtered = processedData.filter(d => d.stock > 0 && (wpF === "ALL" || d.wp === wpF) && (catF === "ALL" || d.category === catF) && (statF === "ALL" || d.status.includes(statF)));
+    const toRender = filtered.slice(isLoadMore ? displayLimits.stock - 100 : 0, displayLimits.stock);
+    
+    let tAmt = 0, uCnt = 0;
+    filtered.forEach(d => { tAmt += d.stockAmt; if(d.status.includes("🚨")) uCnt++; });
+    document.getElementById('s_total_amt').innerText = tAmt.toLocaleString();
+    document.getElementById('s_urgent_cnt').innerText = uCnt.toLocaleString();
 
-    processedData.filter(d => wp === "ALL" || d.wp === wp).forEach((d, idx) => {
-        tQty += d.planQty; tAmt += (d.planQty * d.price);
+    toRender.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem(${idx})">×</button></td>
-            <td>${d.code}</td><td class="text-start">${d.name}</td><td class="text-start">${d.spec}</td>
-            <td class="text-end">${d.price.toLocaleString()}</td><td>${d.wp}</td>
-            <td class="fw-bold">${d.stock.toLocaleString()}</td><td>${d.avg}</td>
-            <td class="text-primary fw-bold">${d.target}</td>
-            <td><input type="number" class="form-control form-control-sm text-center" value="${d.pending}" onchange="updateRow(${idx}, 'pending', this.value)"></td>
-            <td><input type="number" class="input-plan" value="${d.planQty}" onchange="updateRow(${idx}, 'planQty', this.value)"></td>
-            <td class="text-end fw-bold text-success">${(d.planQty * d.price).toLocaleString()}</td>
-        `;
+            <td class="sticky-col">${d.status.includes("🚨") ? '<span class="badge-urgent">🚨긴급</span>' : d.status}</td>
+            <td class="group-set">${d.code}</td><td>${d.name}</td><td>${d.spec}</td><td class="text-end">${d.price.toLocaleString()} 원</td><td>${d.wp}</td><td>${d.category}</td>
+            <td class="fw-bold">${d.stock.toLocaleString()} EA</td><td class="text-success">${d.stockAmt.toLocaleString()} 원</td>
+            <td><span class="weighted-val">${d.avg}</span><span class="compare-box">단순:${d.simpleAvg}</span></td>
+            <td class="fw-bold">${d.safety}</td>`;
         body.appendChild(tr);
     });
-    document.getElementById('sum_qty').innerText = `총 수량: ${tQty.toLocaleString()}`;
-    document.getElementById('sum_amt').innerText = `총 금액: ${tAmt.toLocaleString()}원`;
+    document.getElementById('stock_load_more').style.display = filtered.length > displayLimits.stock ? 'block' : 'none';
 }
 
-function updateRow(idx, field, val) {
-    const d = processedData[idx];
-    d[field] = Number(val);
-    if(field === 'pending') d.planQty = Math.max(0, d.target - (d.stock + d.pending));
-    renderDisplay();
+function renderMonthly(isLoadMore = false) {
+    const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
+    const catF = document.getElementById('m_sel_cat')?.value || "ALL";
+    const body = document.getElementById('monthly_body');
+    if(!body) return;
+    if(!isLoadMore) { body.innerHTML = ""; displayLimits.monthly = 50; }
+
+    const filtered = processedData.filter(d => d.minLimitMet && (wpF === "ALL" || d.wp === wpF) && (catF === "ALL" || d.category === catF));
+    const toRender = filtered.slice(isLoadMore ? displayLimits.monthly - 100 : 0, displayLimits.monthly);
+    
+    let tQ = 0, tA = 0;
+    filtered.forEach(d => { tQ += d.planQty; tA += (d.planQty * d.price); });
+    document.getElementById('m_sum_qty').innerText = tQ.toLocaleString();
+    document.getElementById('m_sum_amt').innerText = tA.toLocaleString();
+
+    toRender.forEach((d, idx) => {
+        const tr = document.createElement('tr');
+        if(d.category === "주문") tr.className = "order-row";
+        tr.innerHTML = `
+            <td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem(${idx})">×</button></td>
+            <td class="group-set">${d.code}</td><td>${d.name}</td><td>${d.spec}</td><td class="text-end">${d.price.toLocaleString()}</td><td>${d.category}</td>
+            <td class="fw-bold">${d.stock.toLocaleString()}</td>
+            <td><span class="weighted-val">${d.avg}</span><span class="compare-box">단순:${d.simpleAvg}</span></td>
+            <td class="text-danger fw-bold">${d.burn}</td><td class="fw-bold">${d.safety}</td><td class="fw-bold text-primary">${d.target}</td><td class="text-success fw-bold">${d.pending}</td>
+            <td><input type="number" style="text-align:center; width:60px;" value="${d.planQty}" onchange="updateM(${idx}, this.value)"></td>
+            <td class="text-end fw-bold">${(d.planQty * d.price).toLocaleString()} 원</td>`;
+        body.appendChild(tr);
+    });
+    document.getElementById('monthly_load_more').style.display = filtered.length > displayLimits.monthly ? 'block' : 'none';
 }
 
-function addNewItem() {
-    const code = document.getElementById('add_code').value;
-    const name = document.getElementById('add_name').value;
-    const wp = document.getElementById('add_wp').value;
-    if(!code || !name) return alert("코드와 품목명을 입력하세요.");
-    processedData.unshift({ code, name, wp, spec: "수동추가", price: 0, stock: 0, avg: 0, target: 0, pending: 0, planQty: 0 });
-    renderDisplay();
+function renderAnnual(isLoadMore = false) {
+    const wpF = document.getElementById('a_sel_wp')?.value || "ALL";
+    const catF = document.getElementById('a_sel_cat')?.value || "ALL";
+    const head = document.getElementById('annual_head');
+    const body = document.getElementById('annual_body');
+    if(!body || !head) return;
+    const start = new Date(document.getElementById('ref_month').value + "-01");
+
+    if(!isLoadMore) {
+        let hHtml = `<tr><th class="sticky-col">코드</th><th>품목명</th><th>규격</th><th>작업장</th><th>구분</th><th>가중평균</th>`;
+        for(let i=1; i<=12; i++) { let m = new Date(start); m.setMonth(start.getMonth() + i); hHtml += `<th>${m.getMonth()+1}월</th>`; }
+        hHtml += `<th>합계</th></tr>`;
+        head.innerHTML = hHtml; body.innerHTML = ""; displayLimits.annual = 50;
+    }
+
+    const filtered = annualData.filter(d => (wpF === "ALL" || d.wp === wpF) && (catF === "ALL" || d.category === catF));
+    const toRender = filtered.slice(isLoadMore ? displayLimits.annual - 100 : 0, displayLimits.annual);
+    
+    let tQ = 0, tA = 0;
+    filtered.forEach(d => { let sum = d.plans.reduce((a,b)=>a+b,0); tQ += sum; tA += (sum * d.price); });
+    document.getElementById('a_sum_qty').innerText = tQ.toLocaleString();
+    document.getElementById('a_sum_amt').innerText = tA.toLocaleString();
+
+    toRender.forEach(d => {
+        let sum = d.plans.reduce((a,b)=>a+b,0);
+        let tr = document.createElement('tr');
+        let bHtml = `<td class="sticky-col group-set">${d.code}</td><td class="text-start">${d.name}</td><td>${d.spec}</td><td>${d.wp}</td><td>${d.category}</td><td>${d.avg}</td>`;
+        d.plans.forEach(p => bHtml += `<td>${p > 0 ? p.toLocaleString() : '-'}</td>`);
+        bHtml += `<td class="fw-bold text-primary">${sum.toLocaleString()} EA</td>`;
+        tr.innerHTML = bHtml; body.appendChild(tr);
+    });
+    document.getElementById('annual_load_more').style.display = filtered.length > displayLimits.annual ? 'block' : 'none';
 }
 
-function deleteItem(idx) {
-    if(confirm("해당 항목을 계획에서 제외할까요?")) { processedData.splice(idx, 1); renderDisplay(); }
+function calculateAnnual() {
+    const cRatio = parseFloat(document.getElementById('cfg_china').value) || 2.0;
+    const oRatio = parseFloat(document.getElementById('cfg_other').value) || 0.5;
+    annualData = [];
+    processedData.forEach(p => {
+        if(p.avg < 1 && p.stock < 1) return;
+        let curStock = (p.category === "주문") ? 0 : p.stock;
+        let mPlans = [];
+        const ratio = p.wp.includes("중국") ? cRatio : oRatio;
+        const target = Math.ceil(p.avg * (ratio + 1));
+        for(let i=1; i<=12; i++) {
+            let needed = Math.max(0, target - (curStock - p.avg));
+            mPlans.push(needed);
+            curStock = (p.category === "주문") ? 0 : (curStock - p.avg) + needed;
+        }
+        annualData.push({ ...p, plans: mPlans });
+    });
 }
+
+async function getTimelineGap(refM, planM) {
+    const token = document.getElementById('gh_token').value;
+    const start = new Date(refM + "-01");
+    const end = new Date(planM + "-01");
+    const gap = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    const pendingMap = {};
+    if(token && gap > 0) {
+        let current = new Date(start);
+        while(current < end) {
+            const mStr = current.toISOString().substring(0, 7);
+            try {
+                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${mStr}.json`, { headers: { Authorization: `token ${token}` } });
+                if(res.ok) { JSON.parse(decodeURIComponent(escape(atob((await res.json()).content)))).forEach(i => pendingMap[i.code] = (pendingMap[i.code] || 0) + (i.planQty || 0)); }
+            } catch(e) {}
+            current.setMonth(current.getMonth() + 1);
+        }
+    }
+    return { gap, pendingMap };
+}
+
+function updateFilters() {
+    const wps = [...new Set(processedData.map(d => d.wp))].sort();
+    const opts = '<option value="ALL">🏭 전체 작업장 보기</option>' + wps.map(w => `<option value="${w}">${w}</option>`).join('');
+    ['s_sel_wp', 'm_sel_wp', 'a_sel_wp'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) { const cur = el.value; el.innerHTML = opts; el.value = wps.includes(cur) ? cur : "ALL"; }
+    });
+}
+
+function updateM(idx, val) { processedData[idx].planQty = Number(val); renderMonthly(); }
+function deleteItem(idx) { if(confirm("제외?")) { processedData.splice(idx, 1); renderMonthly(); } }
 
 async function saveToGithub() {
-    const token = document.getElementById('gh_token').value;
-    const month = document.getElementById('plan_month').value;
-    if(!token || !month) return alert("GitHub 토큰과 계획월을 입력하세요.");
-
-    const path = `data/plan_${month}.json`;
+    const t = document.getElementById('gh_token').value;
+    const m = document.getElementById('plan_month').value;
+    if(!t || !m) return alert("토큰과 계획월 확인!");
     const content = btoa(unescape(encodeURIComponent(JSON.stringify(processedData))));
+    const path = `data/plan_${m}.json`;
     let sha = "";
     try {
-        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${token}` } });
-        if(res.ok) { const d = await res.json(); sha = d.sha; }
+        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } });
+        if(res.ok) sha = (await res.json()).sha;
     } catch(e) {}
-
-    const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, {
-        method: "PUT", headers: { Authorization: `token ${token}` },
-        body: JSON.stringify({ message: `${month} 계획 저장`, content, sha })
-    });
-    if(res.ok) alert("GitHub 저장 완료!"); else alert("저장 실패. 토큰 권한을 확인하세요.");
+    await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 저장`, content, sha }) });
+    alert("✅ GitHub 저장 완료!");
 }
 
 async function loadFromGithub() {
-    const token = document.getElementById('gh_token').value;
-    const month = document.getElementById('plan_month').value;
-    const path = `data/plan_${month}.json`;
-    const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${token}` } });
+    const t = document.getElementById('gh_token').value;
+    const m = document.getElementById('plan_month').value;
+    const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}.json`, { headers: { Authorization: `token ${t}` } });
     if(res.ok) {
-        const d = await res.json();
-        processedData = JSON.parse(decodeURIComponent(escape(atob(d.content))));
-        document.getElementById('result_area').style.display = 'block';
-        updateWpFilter(); renderDisplay();
-        alert(`${month} 기록을 불러왔습니다.`);
-    } else alert("해당 월의 기록이 없습니다.");
-}
-
-function updateWpFilter() {
-    const wps = [...new Set(processedData.map(d => d.wp))].sort();
-    const sel = document.getElementById('sel_wp');
-    sel.innerHTML = '<option value="ALL">전체 작업장</option>' + wps.map(w => `<option value="${w}">${w}</option>`).join('');
+        processedData = JSON.parse(decodeURIComponent(escape(atob((await res.json()).content))));
+        updateFilters(); renderStock(); renderMonthly();
+    }
 }
 
 async function readExcel(file) {
@@ -253,15 +455,23 @@ async function readExcel(file) {
     return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, defval: ""});
 }
 
-function downloadExcel() {
-    const exportData = processedData.map(d => ({
-        "작업장": d.wp, "품목코드": d.code, "품목명": d.name, "규격": d.spec, "단가": d.price,
-        "현재고": d.stock, "월평균판매": d.avg, "적정재고": d.target, "입고예정": d.pending, "계획수량": d.planQty, "계획금액": d.planQty * d.price
-    }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "생산계획서");
-    XLSX.writeFile(wb, `${document.getElementById('plan_month').value || '계획'}_생산계획서.xlsx`);
+function downloadMonthly() {
+    const d = processedData.filter(i => i.planQty > 0).map(i => ({ "작업장": i.wp, "구분": i.category, "코드": i.code, "품목명": i.name, "규격": i.spec, "단가": i.price, "현재고": i.stock, "가중평균": i.avg, "단순평균": i.simpleAvg, "안전재고": i.safety, "적정재고": i.target, "최종계획": i.planQty }));
+    const ws = XLSX.utils.json_to_sheet(d);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "계획서");
+    XLSX.writeFile(wb, `${document.getElementById('plan_month').value}_계획서.xlsx`);
+}
+
+function downloadAnnual() {
+    const d = annualData.filter(i => i.plans.reduce((a,b)=>a+b,0) > 0).map(i => {
+        let o = { "작업장": i.wp, "구분": i.category, "코드": i.code, "품목명": i.name, "규격": i.spec, "가중평균": i.avg };
+        i.plans.forEach((p, idx) => o[`${idx+1}월`] = p);
+        o["연간합계"] = i.plans.reduce((a,b)=>a+b,0);
+        return o;
+    });
+    const ws = XLSX.utils.json_to_sheet(d);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "연간계획");
+    XLSX.writeFile(wb, "연간_예측_시뮬레이션.xlsx");
 }
 </script>
 </body>
