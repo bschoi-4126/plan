@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>생산 계획 수립 시스템 V12 (Final)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Pretendard', sans-serif; font-size: 12px; }
+        .header-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .github-config { background: #e3f2fd; padding: 15px; border-radius: 8px; border: 1px solid #90caf9; margin-bottom: 20px; }
+        .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow-x: auto; max-height: 600px; }
+        .table thead th { background: #2d3748; color: white; position: sticky; top: 0; z-index: 20; text-align: center; }
+        .sticky-col { position: sticky; left: 0; background: white !important; z-index: 10; border-right: 2px solid #cbd5e0 !important; }
+        .input-plan { width: 75px; text-align: center; border: 2px solid #4299e1; border-radius: 4px; font-weight: 800; }
+        .summary-box { background: #fff; padding: 10px 20px; border-radius: 8px; border: 1px solid #dee2e6; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container-fluid p-4">
+    <div class="header-card">
+        <h4 class="fw-bold text-primary mb-3">🏭 생산 계획 수립 시스템 V12 (DB: bschoi-4126/plan)</h4>
+        
+        <div class="github-config row g-3 align-items-center">
+            <div class="col-md-4">
+                <label class="fw-bold mb-1">🔑 GitHub 토큰 (Personal Access Token)</label>
+                <input type="password" id="gh_token" class="form-control form-control-sm" placeholder="ghp_로 시작하는 토큰 입력">
+            </div>
+            <div class="col-md-2">
+                <label class="fw-bold mb-1">📅 계획월 선택</label>
+                <input type="month" id="plan_month" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 d-flex gap-2 align-items-end">
+                <button class="btn btn-dark btn-sm fw-bold w-100" onclick="saveToGithub()">💾 현재 계획 GitHub 저장</button>
+                <button class="btn btn-outline-dark btn-sm fw-bold w-100" onclick="loadFromGithub()">📂 과거 계획 불러오기</button>
+            </div>
+            <div class="small text-muted mt-1 px-3">* 저장소: <strong>bschoi-4126/plan</strong> 경로에 파일이 자동 생성됩니다.</div>
+        </div>
+
+        <div class="row g-3 mt-2">
+            <div class="col-md-3"><label class="fw-bold">1. 판매 데이터</label><input type="file" id="f_sales" class="form-control" multiple></div>
+            <div class="col-md-3"><label class="fw-bold">2. 현재 재고</label><input type="file" id="f_stock" class="form-control"></div>
+            <div class="col-md-3"><label class="fw-bold">3. 작업장 마스터</label><input type="file" id="f_wp" class="form-control"></div>
+            <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100 fw-bold" onclick="runAnalysis()">📊 데이터 통합 분석</button></div>
+        </div>
+
+        <div class="row g-3 align-items-center mt-3 p-3 bg-light rounded border">
+            <div class="col-auto">🇨🇳 중국 배율: <input type="number" id="cfg_china" style="width:50px;" value="2.0"></div>
+            <div class="col-auto">🏢 본사 배율: <input type="number" id="cfg_other" style="width:50px;" value="0.5"></div>
+            <div class="col-auto">📉 최소판매량: <input type="number" id="cfg_min_limit" style="width:50px;" value="1"></div>
+            <div class="col-auto"><button class="btn btn-warning btn-sm fw-bold" onclick="reCalculate()">🔄 설정 적용</button></div>
+            <div class="col-auto ms-auto d-flex gap-1">
+                <input type="text" id="add_code" placeholder="코드" style="width:70px;">
+                <input type="text" id="add_name" placeholder="품목명" style="width:100px;">
+                <select id="add_wp"><option value="중국생산">중국</option><option value="본사">본사</option></select>
+                <button class="btn btn-info btn-sm fw-bold" onclick="addNewItem()">➕ 품목 추가</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="result_area" style="display:none;">
+        <div class="row mb-3 align-items-center">
+            <div class="col-md-2"><select id="sel_wp" class="form-select fw-bold border-primary" onchange="renderDisplay()"></select></div>
+            <div class="col-md-7 d-flex gap-3">
+                <div class="summary-box text-primary" id="sum_qty">총 수량: 0</div>
+                <div class="summary-box text-success" id="sum_amt">총 금액: 0</div>
+            </div>
+            <div class="col-md-3 text-end"><button class="btn btn-success fw-bold" onclick="downloadExcel()">📥 최종 계획서 다운로드(Excel)</button></div>
+        </div>
+
+        <div class="table-container">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th class="sticky-col">삭제</th>
+                        <th>품목코드</th><th>품목명</th><th>규격</th><th>단가</th><th>작업장</th>
+                        <th class="table-info">현재고</th><th class="table-secondary">평균</th>
+                        <th class="table-warning">적정</th><th class="table-danger">입고예정</th>
+                        <th class="table-primary">계획수량</th><th class="table-primary">계획금액</th>
+                    </tr>
+                </thead>
+                <tbody id="data_body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+let rawData = { master: new Map(), sales: {}, stock: {} };
+let processedData = [];
+const REPO_PATH = "bschoi-4126/plan";
+
+async function runAnalysis() {
+    const fSales = document.getElementById('f_sales').files;
+    const fStock = document.getElementById('f_stock').files[0];
+    const fWp = document.getElementById('f_wp').files[0];
+    if(!fSales.length || !fStock || !fWp) return alert("모든 파일을 업로드해 주세요.");
+
+    try {
+        const wpRaw = await readExcel(fWp);
+        const stockRaw = await readExcel(fStock);
+        
+        rawData.stock = {};
+        stockRaw.slice(2).forEach(row => {
+            const code = String(row[1] || "").trim();
+            if(code) rawData.stock[code] = { price: Number(row[14]) || 0, qty: Number(row[16]) || 0 };
+        });
+
+        rawData.sales = {};
+        for(let f of fSales) {
+            const sRaw = await readExcel(f);
+            for(let i=0; i<sRaw.length; i++){
+                if(String(sRaw[i][5]).includes("생산입고량")) {
+                    const code = String(sRaw[i][1]).trim();
+                    const nextRow = sRaw[i+1];
+                    if(code && nextRow && String(nextRow[5]).includes("매출량")) {
+                        if(!rawData.sales[code]) rawData.sales[code] = [];
+                        [6,8,10,12,14,16,18,20,22,24,26,28].forEach(idx => {
+                            let n = Number(String(nextRow[idx] || "0").replace(/,/g, ""));
+                            if(!isNaN(n)) rawData.sales[code].push(n);
+                        });
+                    }
+                }
+            }
+        }
+
+        rawData.master = new Map();
+        let lastWp = "미지정";
+        wpRaw.slice(6).forEach(row => {
+            if(row[3]) lastWp = String(row[3]).trim();
+            const code = String(row[7] || "").trim();
+            if(code && code !== "품목코드" && !rawData.master.has(code)) {
+                rawData.master.set(code, { code, wp: lastWp, name: row[8], spec: row[9] });
+            }
+        });
+
+        reCalculate();
+        document.getElementById('result_area').style.display = 'block';
+        updateWpFilter();
+        alert("분석 완료!");
+    } catch(e) { console.error(e); alert("분석 중 오류 발생"); }
+}
+
+function reCalculate() {
+    const cRatio = parseFloat(document.getElementById('cfg_china').value) || 2.0;
+    const oRatio = parseFloat(document.getElementById('cfg_other').value) || 0.5;
+    const minLimit = parseFloat(document.getElementById('cfg_min_limit').value) || 1;
+
+    processedData = [];
+    rawData.master.forEach((m, code) => {
+        const s = rawData.stock[code] || { price: 0, qty: 0 };
+        const hist = rawData.sales[code] || [];
+        const avg = hist.length ? Math.round(hist.reduce((a,b)=>a+b,0)/hist.length) : 0;
+        if(avg < minLimit) return;
+
+        const ratio = m.wp.includes("중국") ? cRatio : oRatio;
+        const target = Math.ceil(avg * (ratio + 1));
+        const plan = Math.max(0, target - s.qty);
+        processedData.push({ ...m, price: s.price, stock: s.qty, avg, target, pending: 0, planQty: plan });
+    });
+    renderDisplay();
+}
+
+function renderDisplay() {
+    const wp = document.getElementById('sel_wp').value;
+    const body = document.getElementById('data_body');
+    body.innerHTML = "";
+    let tQty = 0, tAmt = 0;
+
+    processedData.filter(d => wp === "ALL" || d.wp === wp).forEach((d, idx) => {
+        tQty += d.planQty; tAmt += (d.planQty * d.price);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem(${idx})">×</button></td>
+            <td>${d.code}</td><td class="text-start">${d.name}</td><td class="text-start">${d.spec}</td>
+            <td class="text-end">${d.price.toLocaleString()}</td><td>${d.wp}</td>
+            <td class="fw-bold">${d.stock.toLocaleString()}</td><td>${d.avg}</td>
+            <td class="text-primary fw-bold">${d.target}</td>
+            <td><input type="number" class="form-control form-control-sm text-center" value="${d.pending}" onchange="updateRow(${idx}, 'pending', this.value)"></td>
+            <td><input type="number" class="input-plan" value="${d.planQty}" onchange="updateRow(${idx}, 'planQty', this.value)"></td>
+            <td class="text-end fw-bold text-success">${(d.planQty * d.price).toLocaleString()}</td>
+        `;
+        body.appendChild(tr);
+    });
+    document.getElementById('sum_qty').innerText = `총 수량: ${tQty.toLocaleString()}`;
+    document.getElementById('sum_amt').innerText = `총 금액: ${tAmt.toLocaleString()}원`;
+}
+
+function updateRow(idx, field, val) {
+    const d = processedData[idx];
+    d[field] = Number(val);
+    if(field === 'pending') d.planQty = Math.max(0, d.target - (d.stock + d.pending));
+    renderDisplay();
+}
+
+function addNewItem() {
+    const code = document.getElementById('add_code').value;
+    const name = document.getElementById('add_name').value;
+    const wp = document.getElementById('add_wp').value;
+    if(!code || !name) return alert("코드와 품목명을 입력하세요.");
+    processedData.unshift({ code, name, wp, spec: "수동추가", price: 0, stock: 0, avg: 0, target: 0, pending: 0, planQty: 0 });
+    renderDisplay();
+}
+
+function deleteItem(idx) {
+    if(confirm("해당 항목을 계획에서 제외할까요?")) { processedData.splice(idx, 1); renderDisplay(); }
+}
+
+async function saveToGithub() {
+    const token = document.getElementById('gh_token').value;
+    const month = document.getElementById('plan_month').value;
+    if(!token || !month) return alert("GitHub 토큰과 계획월을 입력하세요.");
+
+    const path = `data/plan_${month}.json`;
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(processedData))));
+    let sha = "";
+    try {
+        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${token}` } });
+        if(res.ok) { const d = await res.json(); sha = d.sha; }
+    } catch(e) {}
+
+    const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, {
+        method: "PUT", headers: { Authorization: `token ${token}` },
+        body: JSON.stringify({ message: `${month} 계획 저장`, content, sha })
+    });
+    if(res.ok) alert("GitHub 저장 완료!"); else alert("저장 실패. 토큰 권한을 확인하세요.");
+}
+
+async function loadFromGithub() {
+    const token = document.getElementById('gh_token').value;
+    const month = document.getElementById('plan_month').value;
+    const path = `data/plan_${month}.json`;
+    const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${token}` } });
+    if(res.ok) {
+        const d = await res.json();
+        processedData = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+        document.getElementById('result_area').style.display = 'block';
+        updateWpFilter(); renderDisplay();
+        alert(`${month} 기록을 불러왔습니다.`);
+    } else alert("해당 월의 기록이 없습니다.");
+}
+
+function updateWpFilter() {
+    const wps = [...new Set(processedData.map(d => d.wp))].sort();
+    const sel = document.getElementById('sel_wp');
+    sel.innerHTML = '<option value="ALL">전체 작업장</option>' + wps.map(w => `<option value="${w}">${w}</option>`).join('');
+}
+
+async function readExcel(file) {
+    const d = await file.arrayBuffer();
+    const wb = XLSX.read(d, {type: 'array'});
+    return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, defval: ""});
+}
+
+function downloadExcel() {
+    const exportData = processedData.map(d => ({
+        "작업장": d.wp, "품목코드": d.code, "품목명": d.name, "규격": d.spec, "단가": d.price,
+        "현재고": d.stock, "월평균판매": d.avg, "적정재고": d.target, "입고예정": d.pending, "계획수량": d.planQty, "계획금액": d.planQty * d.price
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "생산계획서");
+    XLSX.writeFile(wb, `${document.getElementById('plan_month').value || '계획'}_생산계획서.xlsx`);
+}
+</script>
+</body>
+</html>
