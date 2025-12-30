@@ -27,8 +27,9 @@
                 .logic-switcher { background: #f1f3f5; padding: 5px; border-radius: 30px; display: inline-flex; border: 1px solid #ced4da; }
                 .logic-btn { border: none; background: none; padding: 5px 15px; border-radius: 20px; font-size: 11px; font-weight: bold; cursor: pointer; }
                 .logic-btn.active { background: #000; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-                input[type=number] { border: 1px solid #ced4da; border-radius: 4px; padding: 2px 5px; }
-                input[type=number]::-webkit-inner-spin-button { opacity: 1; filter: contrast(150%) brightness(0.2); cursor: pointer; }
+                input[type=number] { border: 1px solid #ced4da; border-radius: 4px; padding: 2px 5px; -moz-appearance: textfield; appearance: textfield; }
+                input[type=number]::-webkit-inner-spin-button,
+                input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
                 .plan-input { width: 85px; text-align: center; font-weight: 800; background: #f8faff; border: 2px solid #0d6efd; }
                 .load-more-container { text-align: center; padding: 15px; background: #f8f9fa; border-top: 1px solid #dee2e6; }
                 .btn-load-more { padding: 8px 30px; font-weight: 800; font-size: 12px; border-radius: 20px; }
@@ -57,10 +58,10 @@
                         <div class="col-md-3"><label class="fw-bold small text-success">4. 계획 일괄 업로드</label><input type="file" id="f_batch_plan" class="form-control form-control-sm" accept=".xlsx,.xls" onchange="handleBatchPlanUpload(event)"></div>
                 </div>
                 <div class="row g-2 align-items-center p-2 bg-light rounded border">
-                        <div class="col-auto">🇨🇳 중국: <input type="number" id="cfg_china" style="width:45px;" value="1.8"></div>
-                        <div class="col-auto ms-2">🏢 본사: <input type="number" id="cfg_other" style="width:45px;" value="0.5"></div>
-                        <div class="col-auto ms-2">📉 최소기준(Min): <input type="number" id="cfg_min_limit" style="width:40px;" value="1"></div>
-                        <div class="col-auto ms-2 border-start ps-3"><label class="fw-bold text-danger small">🚨 긴급 기준:</label><input type="number" id="cfg_urgent_limit" style="width:45px;" value="0.2" step="0.1"></div>
+                        <div class="col-auto">🇨🇳 중국: <input type="number" id="cfg_china" style="width:45px;" value="1.8" onchange="saveConfig()"></div>
+                        <div class="col-auto ms-2">🏢 본사: <input type="number" id="cfg_other" style="width:45px;" value="0.5" onchange="saveConfig()"></div>
+                        <div class="col-auto ms-2">📉 최소기준(Min): <input type="number" id="cfg_min_limit" style="width:40px;" value="1" onchange="saveConfig()"></div>
+                        <div class="col-auto ms-2 border-start ps-3"><label class="fw-bold text-danger small">🚨 긴급 기준:</label><input type="number" id="cfg_urgent_limit" style="width:45px;" value="0.2" step="0.1" onchange="saveConfig()"></div>
                         <div class="col-auto ms-auto d-flex gap-2">
                                 <button class="btn btn-outline-danger btn-sm" onclick="clearLocalDB()">🗑️ 캐시 삭제</button>
                                 <button class="btn btn-primary btn-sm fw-bold px-4" onclick="runAnalysis()">📊 전체 데이터 분석 실행</button>
@@ -82,13 +83,20 @@
                                 <div class="col-md-2"><select id="s_sel_wp" class="form-select form-select-sm" onchange="renderStock()"></select></div>
                                 <div class="col-md-2"><select id="s_sel_cat" class="form-select form-select-sm" onchange="renderStock()"><option value="ALL">전체 구분</option><option value="계획">계획</option><option value="임의">임의</option><option value="주문">주문</option></select></div>
                                 <div class="col-md-2"><select id="s_sel_status" class="form-select form-select-sm" onchange="renderStock()"><option value="ALL">전체 상태</option><option value="🚨긴급">🚨긴급</option><option value="⚠️주의">⚠️주의</option><option value="정상">정상</option></select></div>
-                                <div class="col-md-2"><input type="text" id="s_search_code" class="form-control form-control-sm" placeholder="품목코드/품목명/규격 검색" onkeyup="renderStock()"></div>
-                                <div class="col-md-2 text-start"><div class="summary-box text-danger">🚨 긴급: <span id="s_urgent_cnt">0</span>건</div></div>
                                 <div class="col-md-6 d-flex gap-2 ms-auto justify-content-end">
                                         <div class="summary-box">재고 총액: <span id="s_total_amt">0</span> 원</div>
                                         <div class="summary-box text-warning">평균 총액: <span id="s_avg_amt">0</span> 원</div>
                                         <div class="summary-box text-info">안전 총액: <span id="s_safety_amt">0</span> 원</div>
                                         <div class="summary-box text-success">적정 총액: <span id="s_target_amt">0</span> 원</div>
+                                </div>
+                        </div>
+                        <div class="row mb-3 align-items-center bg-white p-2 rounded shadow-sm mx-0">
+                                <div class="col-md-4 d-flex gap-2 align-items-center">
+                                        <label class="fw-bold small mb-0" style="min-width: 80px;">🔍 검색:</label>
+                                        <input type="text" id="s_search_code" class="form-control form-control-sm" placeholder="품목코드/품목명/규격 검색" onkeyup="renderStock()">
+                                </div>
+                                <div class="col-md-3">
+                                        <div class="summary-box text-danger mb-0 text-center" style="font-weight: 800; border: 2px solid #dc3545;">🚨 긴급: <span id="s_urgent_cnt">0</span>건</div>
                                 </div>
                         </div>
                         <div class="table-container">
@@ -156,12 +164,17 @@
                                 <div class="col-md-4">
                                         <div class="summary-box mb-2 text-secondary">기존 로직 적중률: <span id="sim_accuracy_v20">--%</span></div>
                                         <div class="summary-box mb-2 text-primary" style="background:#e7f5ff; border:2px solid #0d6efd;">고도화 로직 적중률: <span id="sim_accuracy_v21" style="font-size:24px;">--%</span></div>
+                                        <div class="summary-box mb-2 text-success" style="background:#e7f5ff; border:2px solid #198754;">방안1(가중이동평균) 적중률: <span id="sim_accuracy_v1">--%</span></div>
+                                        <div class="summary-box mb-2 text-info" style="background:#e7f5ff; border:2px solid #0dcaf0;">방안2(하이브리드) 적중률: <span id="sim_accuracy_v2">--%</span></div>
+                                        <div class="summary-box mb-2 text-warning" style="background:#e7f5ff; border:2px solid #ffc107;">방안3(6개월이동평균) 적중률: <span id="sim_accuracy_v3">--%</span></div>
+                                        <div class="summary-box mb-2" style="background:#e7f5ff; border:2px solid #6f42c1;">방안4(계절성+적응형) 적중률: <span id="sim_accuracy_v4">--%</span></div>
                                         <div class="summary-box text-center bg-light">품절 위기: <span id="sim_shortage" class="clickable-shortage text-danger" style="cursor:pointer; text-decoration:underline;" onclick="showShortageDetails()">--</span>회</div>
+                                        <div class="summary-box text-center bg-warning" style="border:2px solid #ffc107;">⚠️ 고매출 미계획: <span id="sim_high_sales_no_plan" class="text-danger fw-bold clickable-shortage" style="cursor:pointer; text-decoration:underline;" onclick="showHighSalesNoPlanDetails()">--</span>건</div>
                                 </div>
                         </div>
                         <div class="table-container mt-4">
                                 <table class="table table-bordered table-sm">
-                                        <thead><tr class="table-dark"><th>코드</th><th>품목명</th><th>규격</th><th>기존 계획합</th><th>AI 고도화합</th><th>실제 매출합</th><th>적중률(기존)</th><th>적중률(AI)</th></tr></thead>
+                                        <thead><tr class="table-dark"><th>코드</th><th>품목명</th><th>규격</th><th>기존 계획합</th><th>AI 고도화합</th><th>방안1</th><th>방안2</th><th>방안3</th><th>방안4</th><th>실제 매출합</th><th>적중률(기존)</th><th>적중률(AI)</th><th>적중률(방안1)</th><th>적중률(방안2)</th><th>적중률(방안3)</th><th>적중률(방안4)</th></tr></thead>
                                         <tbody id="sim_body"></tbody>
                                 </table>
                                 <div class="load-more-container"><button class="btn btn-outline-dark btn-load-more" onclick="loadMore('sim')">+ 데이터 50개 더 불러오기</button></div>
@@ -203,6 +216,16 @@ window.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('ref_month').value = localStorage.getItem('jemini_ref_month') || new Date().toISOString().substring(0, 7);
                 document.getElementById('plan_month').value = localStorage.getItem('jemini_plan_month') || new Date().toISOString().substring(0, 7);
                 syncMonthDisplay();
+                const savedConfig = localStorage.getItem('jemini_config');
+                if(savedConfig) {
+                        try {
+                                const cfg = JSON.parse(savedConfig);
+                                if(cfg.china !== undefined) document.getElementById('cfg_china').value = cfg.china;
+                                if(cfg.other !== undefined) document.getElementById('cfg_other').value = cfg.other;
+                                if(cfg.minLimit !== undefined) document.getElementById('cfg_min_limit').value = cfg.minLimit;
+                                if(cfg.urgentLimit !== undefined) document.getElementById('cfg_urgent_limit').value = cfg.urgentLimit;
+                        } catch(e) {}
+                }
                 const savedFiltersData = localStorage.getItem('jemini_filters');
                 if(savedFiltersData) {
                         try { savedFilters = JSON.parse(savedFiltersData); } catch(e) {}
@@ -237,9 +260,20 @@ function changeMonth(diff) {
                 if(rawData.master.size > 0) reCalculate(); 
         } catch(e) { console.error("월 변경 오류:", e); }
 }
+function saveConfig() {
+        try {
+                const config = {
+                        china: parseFloat(document.getElementById('cfg_china')?.value) || 1.8,
+                        other: parseFloat(document.getElementById('cfg_other')?.value) || 0.5,
+                        minLimit: parseFloat(document.getElementById('cfg_min_limit')?.value) || 1,
+                        urgentLimit: parseFloat(document.getElementById('cfg_urgent_limit')?.value) || 0.2
+                };
+                localStorage.setItem('jemini_config', JSON.stringify(config));
+        } catch(e) { console.error("설정 저장 오류:", e); }
+}
 function switchLogic(mode) { currentLogicMode = mode; document.getElementById('btn_logic_v20').classList.toggle('active', mode === 'V20'); document.getElementById('btn_logic_v21').classList.toggle('active', mode === 'V21'); renderMonthly(); }
 function resetLimits() { displayLimits = { stock: 50, monthly: 50, sim: 50, annual: 50 }; }
-function loadMore(type) { displayLimits[type] += 50; if(type==='stock') renderStock(); else if(type==='monthly') renderMonthly(); else if(type==='annual') renderAnnual(); else if(type==='sim') renderSimResults_Table(); }
+function loadMore(type) { displayLimits[type] += 50; if(type==='stock') renderStock(); else if(type==='monthly') renderMonthly(); else if(type==='annual') renderAnnual(); else if(type==='sim') { if(simResults.length > 0) { const empty = Array(12).fill(0); renderSimResults_Table(empty, empty, empty, empty, empty, empty, empty, 0); } } }
 
 async function runAnalysis() {
         try {
@@ -346,16 +380,17 @@ async function reCalculate() {
                 const wps = [...new Set(processedData.map(d => d.wp))].sort(); 
                 const wpsNoChina = wps.filter(w => !w.includes("중국"));
                 const opts = '<option value="ALL">전체 작업장</option>' + wps.map(w => `<option value="${w}">${w}</option>`).join(''); 
+                const filterOpts = '<option value="ALL">전체</option><option value="CHINA">중국생산</option><option value="NO_CHINA">중국생산 제외</option>' + wpsNoChina.map(w => `<option value="${w}">${w}</option>`).join('');
                 const sSelWp = document.getElementById('s_sel_wp');
                 if(sSelWp) {
-                        sSelWp.innerHTML = '<option value="ALL">전체</option><option value="NO_CHINA">중국생산 제외</option>' + wps.map(w => `<option value="${w}">${w}</option>`).join('');
+                        sSelWp.innerHTML = filterOpts;
                         const saved = savedFilters.wp['s_sel_wp'];
-                        if(saved && ['ALL', 'NO_CHINA', ...wps].includes(saved)) sSelWp.value = saved;
+                        if(saved && ['ALL', 'CHINA', 'NO_CHINA', ...wpsNoChina].includes(saved)) sSelWp.value = saved;
                 }
                 ['a_sel_wp', 'sim_sel_wp'].forEach(id => { 
                         const el = document.getElementById(id); 
                         if(el) { 
-                                el.innerHTML = opts; 
+                                el.innerHTML = filterOpts; 
                                 if(savedFilters.wp[id]) el.value = savedFilters.wp[id];
                         } 
                 });
@@ -388,8 +423,9 @@ function renderStock() {
                                 const specStr = String(d.spec || "");
                                 if(!codeStr.includes(searchCode) && !nameStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
                         }
-                        if(wpF === "NO_CHINA" && d.wp && d.wp.includes("중국")) return false;
-                        if(wpF !== "ALL" && wpF !== "NO_CHINA" && d.wp !== wpF) return false;
+                        if(wpF === "CHINA") return d.wp && d.wp.includes("중국");
+                        if(wpF === "NO_CHINA") return d.wp && !d.wp.includes("중국");
+                        if(wpF !== "ALL" && d.wp !== wpF) return false;
                         if(catF !== "ALL" && d.category && !d.category.includes(catF)) return false;
                         if(statF !== "ALL" && d.status && !d.status.includes(statF)) return false;
                         return true;
@@ -529,6 +565,8 @@ function calculateAnnual() {
                 annualData = []; 
                 processedData.forEach(p => { 
                         if(p.avg < 1 && p.stock < 1) return; 
+                        const masterInfo = rawData.master.get(p.code);
+                        if(!masterInfo || !masterInfo.wp || masterInfo.wp === "기타") return;
                         let curS = p.stock, mP = [], yS = 0; 
                         const target = (currentLogicMode==='V20'?p.target_A:p.target_B); 
                         for(let i=1; i<=12; i++) { 
@@ -538,7 +576,7 @@ function calculateAnnual() {
                                 yS += plan; 
                                 curS = (curS-p.avg)+plan; 
                         } 
-                        annualData.push({ ...p, plans: mP, annualSum: yS }); 
+                        annualData.push({ ...p, wp: masterInfo.wp, category: masterInfo.category, plans: mP, annualSum: yS }); 
                 }); 
                 renderAnnual(); 
         } catch(e) { console.error("연간 예측 계산 오류:", e); }
@@ -552,7 +590,16 @@ function renderAnnual() {
                 const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
                 const start = new Date(refMonth + "-01");
                 head.innerHTML = `<th class="sticky-col">코드</th><th>품목명</th><th>규격</th><th>평균</th>` + [...Array(12).keys()].map(i => { let m = new Date(start); m.setMonth(start.getMonth()+i+1); return `<th>${m.getMonth()+1}월</th>`; }).join('') + `<th>합계</th>`;
-                body.innerHTML = ""; const f = annualData.filter(p => (wpF==="ALL"||p.wp===wpF) && (catF==="ALL"||p.category.includes(catF)));
+                body.innerHTML = ""; 
+                const f = annualData.filter(p => {
+                        if(!p || p.wp === "기타") return false;
+                        if(p.annualSum === 0 || !p.annualSum) return false;
+                        if(wpF === "CHINA") return p.wp && p.wp.includes("중국");
+                        if(wpF === "NO_CHINA") return p.wp && !p.wp.includes("중국");
+                        if(wpF !== "ALL" && p.wp !== wpF) return false;
+                        if(catF !== "ALL" && p.category && !p.category.includes(catF)) return false;
+                        return true;
+                });
                 let tQ = 0, tA = 0; f.forEach(p => { tQ += p.annualSum; tA += (p.annualSum*p.price); }); 
                 if(document.getElementById('a_sum_qty_box')) document.getElementById('a_sum_qty_box').innerText = `연간 수량: ${tQ.toLocaleString()} EA`; 
                 if(document.getElementById('a_sum_amt_box')) document.getElementById('a_sum_amt_box').innerText = `연간 금액: ${tA.toLocaleString()} 원`;
@@ -568,29 +615,144 @@ async function runAlgoSimulation() {
                 if(loadingEl) loadingEl.style.display='flex';
                 try {
                         const raw = await readExcel(f), sMap = {}; raw.slice(2).forEach(r => { if(r[1]) sMap[String(r[1]).trim()] = Number(String(r[16]||"0").replace(/,/g,"")); });
-                        simResults = []; shortageDetails = []; let tP_A = Array(12).fill(0), tP_B = Array(12).fill(0), tA = Array(12).fill(0), sC = 0;
-                        processedData.filter(d => { if(wpF!=="ALL" && d.wp!==wpF) return false; if(d.wp.includes("중국")) return true; return d.category === "계획"; }).forEach(d => {
-                                let sA = sMap[d.code]||0, sB = sMap[d.code]||0, actS = rawData.salesByYear[yr]?(rawData.salesByYear[yr][d.code]||Array(12).fill(0)):Array(12).fill(0);
-                                let pA_S = 0, pB_S = 0, a_S = 0, active = false;
-                                actS.forEach((sold, i) => { const nA = Math.max(0, d.target_A-(sA-d.avg)), nB = Math.max(0, d.target_B-(sB-d.avg)), pA = (nA < d.unit)?0:Math.floor(nA/d.unit)*d.unit, pB = (nB < d.unit)?0:Math.floor(nB/d.unit)*d.unit; tP_A[i]+=pA; tP_B[i]+=pB; tA[i]+=sold; if(i>0){ pA_S+=pA; pB_S+=pB; a_S+=sold; } sA=(sA-sold)+pA; sB=(sB-sold)+pB; if(sB<0) { sC++; shortageDetails.push({ code:d.code, name:d.name, spec:d.spec, month:i+1, shortage:Math.abs(sB) }); } if(pA>0||pB>0||sold>0) active=true; });
-                                if(active && (pA_S>0 || pB_S>0 || a_S>0)) simResults.push({ code:d.code, name:d.name, spec:d.spec, planA:pA_S, planB:pB_S, actual:a_S, accA:a_S>0?Math.max(0, 100-(Math.abs(pA_S-a_S)/a_S*100)):0, accB:a_S>0?Math.max(0, 100-(Math.abs(pB_S-a_S)/a_S*100)):0 });
+                        simResults = []; shortageDetails = []; let tP_A = Array(12).fill(0), tP_B = Array(12).fill(0), tP_V1 = Array(12).fill(0), tP_V2 = Array(12).fill(0), tP_V3 = Array(12).fill(0), tP_V4 = Array(12).fill(0), tA = Array(12).fill(0), sC = 0;
+                        processedData.filter(d => { 
+                                if(wpF === "CHINA") return d.wp && d.wp.includes("중국");
+                                if(wpF === "NO_CHINA") return d.wp && !d.wp.includes("중국") && d.category === "계획";
+                                if(wpF !== "ALL" && d.wp !== wpF) return false;
+                                if(d.wp.includes("중국")) return true;
+                                return d.category === "계획"; 
+                        }).forEach(d => {
+                                const yrs = Object.keys(rawData.salesByYear).sort();
+                                let wSum = 0, tW = 0, allSalesArr = [];
+                                yrs.forEach((yr, yrIdx) => { const weight = yrIdx + 1; const monthly = rawData.salesByYear[yr][d.code]||Array(12).fill(0); const meanYr = monthly.reduce((a,b)=>a+b,0)/12; const cleaned = monthly.map(v => (v > meanYr * 2.5 && v > 5) ? meanYr : v); wSum += (cleaned.reduce((a,b)=>a+b,0)/12)*weight; tW += weight; allSalesArr.push(...cleaned); });
+                                let r3 = []; const revYrs = [...yrs].reverse(); for(let y of revYrs) { const moD = [...rawData.salesByYear[y][d.code]||Array(12).fill(0)].reverse(); for(let v of moD) { r3.push(v); if(r3.length===3) break; } if(r3.length===3) break; }
+                                const wAvg = tW > 0 ? Math.round(wSum/tW) : 0, avg3m = r3.length ? Math.round(r3.reduce((a,b)=>a+b)/3) : 0;
+                                const cv = (allSalesArr.length ? Math.sqrt(allSalesArr.reduce((a,b)=>a+Math.pow(b-(allSalesArr.reduce((x,y)=>x+y)/allSalesArr.length),2),0)/allSalesArr.length) : 0) / (allSalesArr.reduce((a,b)=>a+b,0)/allSalesArr.length || 1);
+                                const baseR = d.wp.includes("중국") ? parseFloat(document.getElementById('cfg_cn_ratio')?.value || 2.0) : parseFloat(document.getElementById('cfg_office_ratio')?.value || 0.5);
+                                
+                                const target_A = Math.ceil(wAvg*(baseR+1)), target_B = Math.ceil(wAvg*((baseR*(1+cv*0.5))+1));
+                                
+                                const seasonalData = {}; yrs.forEach(y => { const monthly = rawData.salesByYear[y][d.code]||Array(12).fill(0); monthly.forEach((v, m) => { if(!seasonalData[m]) seasonalData[m] = []; if(v > 0) seasonalData[m].push(v); }); });
+                                const seasonalAvg = Array(12).fill(0).map((_, m) => seasonalData[m] && seasonalData[m].length > 0 ? Math.round(seasonalData[m].reduce((a,b)=>a+b,0)/seasonalData[m].length) : wAvg);
+                                
+                                const recent12m = []; const revYrs12 = [...yrs].reverse(); for(let y of revYrs12) { const moD = [...rawData.salesByYear[y][d.code]||Array(12).fill(0)].reverse(); for(let v of moD) { recent12m.push(v); if(recent12m.length===12) break; } if(recent12m.length===12) break; }
+                                const weightedRecent = recent12m.length > 0 ? Math.round(recent12m.reduce((sum, val, idx) => sum + val * (idx + 1), 0) / (recent12m.length * (recent12m.length + 1) / 2)) : wAvg;
+                                
+                                const trendRatio = avg3m > 0 && wAvg > 0 ? Math.min(1.5, Math.max(0.5, avg3m / wAvg)) : 1;
+                                const hybridPred = Math.round((seasonalAvg[0] * 0.5) + (avg3m * 0.3) + (wAvg * 0.2));
+                                
+                                const recent6m = []; const revYrs6 = [...yrs].reverse(); for(let y of revYrs6) { const moD = [...rawData.salesByYear[y][d.code]||Array(12).fill(0)].reverse(); for(let v of moD) { recent6m.push(v); if(recent6m.length===6) break; } if(recent6m.length===6) break; }
+                                const movingAvg6m = recent6m.length > 0 ? Math.round(recent6m.reduce((a,b)=>a+b,0)/recent6m.length) : wAvg;
+                                
+                                const target_V1 = Math.ceil(weightedRecent*(baseR+1));
+                                const target_V2 = Math.ceil(hybridPred*(baseR+1));
+                                const target_V3 = Math.ceil(movingAvg6m*(baseR+1));
+                                const target_V4 = Math.ceil(seasonalAvg[0]*(baseR+1));
+                                
+                                let sA = sMap[d.code]||0, sB = sMap[d.code]||0, sV1 = sMap[d.code]||0, sV2 = sMap[d.code]||0, sV3 = sMap[d.code]||0, sV4 = sMap[d.code]||0;
+                                let actS = rawData.salesByYear[yr]?(rawData.salesByYear[yr][d.code]||Array(12).fill(0)):Array(12).fill(0);
+                                let pA_S = 0, pB_S = 0, pV1_S = 0, pV2_S = 0, pV3_S = 0, pV4_S = 0, a_S = 0, active = false;
+                                let adaptiveV1 = weightedRecent, adaptiveV2 = hybridPred, adaptiveV3 = movingAvg6m;
+                                actS.forEach((sold, i) => { 
+                                        const predA = d.avg, predB = d.avg;
+                                        
+                                        const predV1 = adaptiveV1;
+                                        const predV2 = adaptiveV2;
+                                        const predV3 = adaptiveV3;
+                                        const predV4 = seasonalAvg[i] || wAvg;
+                                        
+                                        const nA = Math.max(0, target_A-(sA-predA)), nB = Math.max(0, target_B-(sB-predB));
+                                        const nV1 = Math.max(0, target_V1-(sV1-predV1));
+                                        const nV2 = Math.max(0, target_V2-(sV2-predV2));
+                                        const nV3 = Math.max(0, target_V3-(sV3-predV3));
+                                        const nV4 = Math.max(0, target_V4-(sV4-predV4));
+                                        
+                                        const pA = (nA < d.unit)?0:Math.floor(nA/d.unit)*d.unit, pB = (nB < d.unit)?0:Math.floor(nB/d.unit)*d.unit;
+                                        const pV1 = (nV1 < d.unit)?0:Math.floor(nV1/d.unit)*d.unit, pV2 = (nV2 < d.unit)?0:Math.floor(nV2/d.unit)*d.unit;
+                                        const pV3 = (nV3 < d.unit)?0:Math.floor(nV3/d.unit)*d.unit, pV4 = (nV4 < d.unit)?0:Math.floor(nV4/d.unit)*d.unit;
+                                        tP_A[i]+=pA; tP_B[i]+=pB; tP_V1[i]+=pV1; tP_V2[i]+=pV2; tP_V3[i]+=pV3; tP_V4[i]+=pV4; tA[i]+=sold; 
+                                        if(i>0){ pA_S+=pA; pB_S+=pB; pV1_S+=pV1; pV2_S+=pV2; pV3_S+=pV3; pV4_S+=pV4; a_S+=sold; } 
+                                        sA=(sA-sold)+pA; sB=(sB-sold)+pB; sV1=(sV1-sold)+pV1; sV2=(sV2-sold)+pV2; sV3=(sV3-sold)+pV3; sV4=(sV4-sold)+pV4;
+                                        if(i < actS.length - 1) {
+                                                const error1 = sold - predV1;
+                                                const error2 = sold - predV2;
+                                                const error3 = sold - predV3;
+                                                adaptiveV1 = adaptiveV1 + (error1 * 0.4);
+                                                adaptiveV2 = adaptiveV2 + (error2 * 0.3);
+                                                adaptiveV3 = adaptiveV3 + (error3 * 0.35);
+                                        }
+                                        if(sB<0 || sV1<0 || sV2<0 || sV3<0 || sV4<0) { sC++; shortageDetails.push({ code:d.code, name:d.name, spec:d.spec, month:i+1, shortage:Math.abs(Math.min(sB, sV1, sV2, sV3, sV4)) }); } 
+                                        if(pA>0||pB>0||pV1>0||pV2>0||pV3>0||pV4>0||sold>0) active=true; 
+                                });
+                                if(active && a_S > 0) {
+                                        const allPlansZero = pA_S === 0 && pB_S === 0 && pV1_S === 0 && pV2_S === 0 && pV3_S === 0 && pV4_S === 0;
+                                        const highSalesNoPlan = a_S >= 1000 && allPlansZero;
+                                        simResults.push({ 
+                                                code:d.code, name:d.name, spec:d.spec, 
+                                                planA:pA_S, planB:pB_S, planV1:pV1_S, planV2:pV2_S, planV3:pV3_S, planV4:pV4_S, actual:a_S, 
+                                                accA:Math.max(0, 100-(Math.abs(pA_S-a_S)/a_S*100)), 
+                                                accB:Math.max(0, 100-(Math.abs(pB_S-a_S)/a_S*100)),
+                                                accV1:Math.max(0, 100-(Math.abs(pV1_S-a_S)/a_S*100)),
+                                                accV2:Math.max(0, 100-(Math.abs(pV2_S-a_S)/a_S*100)),
+                                                accV3:Math.max(0, 100-(Math.abs(pV3_S-a_S)/a_S*100)),
+                                                accV4:Math.max(0, 100-(Math.abs(pV4_S-a_S)/a_S*100)),
+                                                warning: highSalesNoPlan
+                                        });
+                                }
                         });
-                        renderSimResults_Table(tP_A, tP_B, tA, sC);
+                        renderSimResults_Table(tP_A, tP_B, tP_V1, tP_V2, tP_V3, tP_V4, tA, sC);
                 } finally { if(loadingEl) loadingEl.style.display='none'; }
         } catch(e) { console.error("시뮬레이션 오류:", e); alert("시뮬레이션 실행 중 오류가 발생했습니다."); }
 }
 
-function renderSimResults_Table(pA, pB, aD, sC) {
+function renderSimResults_Table(pA, pB, pV1, pV2, pV3, pV4, aD, sC) {
         try {
                 const body = document.getElementById('sim_body'); if(!body) return; body.innerHTML = "";
-                simResults.sort((a,b)=>a.accB-b.accB).slice(0, displayLimits.sim).forEach(r => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${r.code}</td><td>${r.name}</td><td>${r.spec}</td><td>${r.planA.toLocaleString()}</td><td>${r.planB.toLocaleString()}</td><td>${r.actual.toLocaleString()}</td><td>${Math.round(r.accA)}%</td><td class="text-primary fw-bold">${Math.round(r.accB)}%</td>`; body.appendChild(tr); });
-                if(document.getElementById('sim_accuracy_v20')) document.getElementById('sim_accuracy_v20').innerText = Math.round(simResults.reduce((a,b)=>a+b.accA,0)/(simResults.length||1))+"%";
-                if(document.getElementById('sim_accuracy_v21')) document.getElementById('sim_accuracy_v21').innerText = Math.round(simResults.reduce((a,b)=>a+b.accB,0)/(simResults.length||1))+"%";
+                const bestAcc = Math.max(...simResults.map(r => Math.max(r.accA||0, r.accB||0, r.accV1||0, r.accV2||0, r.accV3||0, r.accV4||0)));
+                simResults.sort((a,b)=>b.accB-a.accB).slice(0, displayLimits.sim).forEach(r => { 
+                        const tr = document.createElement('tr'); 
+                        const bestV = Math.max(r.accA||0, r.accB||0, r.accV1||0, r.accV2||0, r.accV3||0, r.accV4||0);
+                        const accV1Class = r.accV1 === bestV ? 'text-success fw-bold' : '';
+                        const accV2Class = r.accV2 === bestV ? 'text-info fw-bold' : '';
+                        const accV3Class = r.accV3 === bestV ? 'text-warning fw-bold' : '';
+                        const accV4Class = r.accV4 === bestV ? 'fw-bold' : '';
+                        const highSalesNoPlan = r.actual >= 1000 && r.planA === 0 && r.planB === 0 && r.planV1 === 0 && r.planV2 === 0 && r.planV3 === 0 && r.planV4 === 0;
+                        if(highSalesNoPlan) tr.style.backgroundColor = '#fff3cd';
+                        tr.innerHTML = `<td>${r.code}</td><td>${r.name}</td><td>${r.spec}</td><td>${r.planA.toLocaleString()}</td><td>${r.planB.toLocaleString()}</td><td>${r.planV1.toLocaleString()}</td><td>${r.planV2.toLocaleString()}</td><td>${r.planV3.toLocaleString()}</td><td>${r.planV4.toLocaleString()}</td><td class="${highSalesNoPlan ? 'fw-bold text-danger' : ''}">${r.actual.toLocaleString()}</td><td>${Math.round(r.accA)}%</td><td class="text-primary fw-bold">${Math.round(r.accB)}%</td><td class="${accV1Class}">${Math.round(r.accV1)}%</td><td class="${accV2Class}">${Math.round(r.accV2)}%</td><td class="${accV3Class}">${Math.round(r.accV3)}%</td><td class="${accV4Class}">${Math.round(r.accV4)}%</td>`; 
+                        body.appendChild(tr); 
+                });
+                if(document.getElementById('sim_accuracy_v20')) document.getElementById('sim_accuracy_v20').innerText = Math.round(simResults.reduce((a,b)=>a+(b.accA||0),0)/(simResults.length||1))+"%";
+                if(document.getElementById('sim_accuracy_v21')) document.getElementById('sim_accuracy_v21').innerText = Math.round(simResults.reduce((a,b)=>a+(b.accB||0),0)/(simResults.length||1))+"%";
+                if(document.getElementById('sim_accuracy_v1')) document.getElementById('sim_accuracy_v1').innerText = Math.round(simResults.reduce((a,b)=>a+(b.accV1||0),0)/(simResults.length||1))+"%";
+                if(document.getElementById('sim_accuracy_v2')) document.getElementById('sim_accuracy_v2').innerText = Math.round(simResults.reduce((a,b)=>a+(b.accV2||0),0)/(simResults.length||1))+"%";
+                if(document.getElementById('sim_accuracy_v3')) document.getElementById('sim_accuracy_v3').innerText = Math.round(simResults.reduce((a,b)=>a+(b.accV3||0),0)/(simResults.length||1))+"%";
+                if(document.getElementById('sim_accuracy_v4')) document.getElementById('sim_accuracy_v4').innerText = Math.round(simResults.reduce((a,b)=>a+(b.accV4||0),0)/(simResults.length||1))+"%";
                 if(document.getElementById('sim_shortage')) document.getElementById('sim_shortage').innerText = (sC||0).toLocaleString();
+                const highSalesNoPlan = simResults.filter(r => r.actual >= 1000 && r.planA === 0 && r.planB === 0 && r.planV1 === 0 && r.planV2 === 0 && r.planV3 === 0 && r.planV4 === 0);
+                if(document.getElementById('sim_high_sales_no_plan')) {
+                        document.getElementById('sim_high_sales_no_plan').innerText = highSalesNoPlan.length;
+                        window.highSalesNoPlanDetails = highSalesNoPlan;
+                }
                 const simChartEl = document.getElementById('simChart');
                 if(simChartEl) {
                         if(charts.sim) charts.sim.destroy(); 
-                        charts.sim = new Chart(simChartEl.getContext('2d'), { type:'line', data:{ labels:['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'], datasets:[{label:'기존 로직', data:pA, borderColor:'#dee2e6', fill:false},{label:'고도화 로직(AI)', data:pB, borderColor:'#20c997', fill:false},{label:'실제 매출', data:aD, borderColor:'#0d6efd', borderDash:[5,5], fill:false}]}, options:{maintainAspectRatio:false} });
+                        charts.sim = new Chart(simChartEl.getContext('2d'), { 
+                                type:'line', 
+                                data:{ 
+                                        labels:['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'], 
+                                        datasets:[
+                                                {label:'기존 로직', data:pA, borderColor:'#dee2e6', fill:false},
+                                                {label:'고도화 로직(AI)', data:pB, borderColor:'#20c997', fill:false},
+                                                {label:'방안1(가중이동평균)', data:pV1, borderColor:'#198754', fill:false, borderDash:[3,3]},
+                                                {label:'방안2(하이브리드)', data:pV2, borderColor:'#0dcaf0', fill:false, borderDash:[3,3]},
+                                                {label:'방안3(6개월이동평균)', data:pV3, borderColor:'#ffc107', fill:false, borderDash:[3,3]},
+                                                {label:'방안4(계절성+적응형)', data:pV4, borderColor:'#6f42c1', fill:false, borderDash:[3,3]},
+                                                {label:'실제 매출', data:aD, borderColor:'#0d6efd', borderDash:[5,5], fill:false, borderWidth:2}
+                                        ]
+                                }, 
+                                options:{maintainAspectRatio:false} 
+                        }); 
                 }
         } catch(e) { console.error("시뮬레이션 결과 렌더링 오류:", e); }
 }
@@ -598,6 +760,14 @@ function showShortageDetails() {
         if(shortageDetails.length === 0) return alert("품절 위기 내역이 없습니다.");
         let msg = "품절 위기 상세 내역:\n\n";
         shortageDetails.forEach((d, idx) => { msg += `${idx+1}. ${d.code} - ${d.name} (${d.spec})\n   ${d.month}월 부족량: ${d.shortage.toLocaleString()}개\n\n`; });
+        alert(msg);
+}
+function showHighSalesNoPlanDetails() {
+        if(!window.highSalesNoPlanDetails || window.highSalesNoPlanDetails.length === 0) return alert("고매출 미계획 내역이 없습니다.");
+        let msg = "⚠️ 고매출 미계획 상세 내역 (실제 매출 1,000 이상, 모든 방안 계획 0):\n\n";
+        window.highSalesNoPlanDetails.forEach((r, idx) => { 
+                msg += `${idx+1}. ${r.code} - ${r.name} (${r.spec})\n   실제 매출: ${r.actual.toLocaleString()}개\n   기존/AI/방안1-4 모두 계획: 0\n\n`; 
+        });
         alert(msg);
 }
 
@@ -622,7 +792,12 @@ function sortTable(tab, idx) {
                 renderStock(); 
         }
         else if (tab === 'monthly') { processedData.sort((a,b) => comp(a,b, ['','code','name','spec','price','stock','avg','avg3m','avg3mPlan','minS','maxS','burn','safety_A','target_A','unit','pending','plan_A','amt'][idx])); renderMonthly(); }
-        else if (tab === 'sim') { simResults.sort((a,b) => comp(a,b, ['code','name','spec','planA','planB','actual','accA','accB'][idx])); renderSimResults_Table(); }
+        else if (tab === 'sim') { 
+                const keyMap = ['code','name','spec','planA','planB','planV1','planV2','planV3','planV4','actual','accA','accB','accV1','accV2','accV3','accV4'];
+                simResults.sort((a,b) => comp(a,b, keyMap[idx])); 
+                const empty = Array(12).fill(0);
+                renderSimResults_Table(empty, empty, empty, empty, empty, empty, empty, 0); 
+        }
         else if (tab === 'annual') { annualData.sort((a,b) => comp(a,b, ['code','name','spec','avg','','','','','','','','','','','','annualSum'][idx] || 'annualSum')); renderAnnual(); }
 }
 
