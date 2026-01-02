@@ -672,14 +672,23 @@ function renderStock() {
                                 if(!codeStr.includes(searchCode) && !nameStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
                         }
                         const wp = d.wp || "";
-                        if(wpF === "CHINA") return wp.includes("중국");
-                        if(wpF === "NO_CHINA") return !wp.includes("중국");
-                        if(wpF !== "ALL" && wp !== wpF) return false;
+                        if(wpF === "CHINA") {
+                                if(!wp.includes("중국")) return false;
+                        } else if(wpF === "NO_CHINA") {
+                                if(wp.includes("중국")) return false;
+                        } else if(wpF !== "ALL" && wp !== wpF) {
+                                return false;
+                        }
+                        // 카테고리 필터: "계획" 선택 시 "계획"만, "주문" 선택 시 "주문"만, "임의" 선택 시 "임의"만 표시
                         if(catF !== "ALL") {
-                                const category = d.category || "";
+                                const category = String(d.category || "").trim();
                                 if(category !== catF) return false;
                         }
-                        if(statF !== "ALL" && d.status && !d.status.includes(statF)) return false;
+                        // 상태 필터: "🚨긴급", "⚠️주의", "정상" 중 선택된 것만 표시
+                        if(statF !== "ALL") {
+                                const status = String(d.status || "").trim();
+                                if(!status.includes(statF)) return false;
+                        }
                         return true;
                 });
                 if(document.getElementById('s_urgent_cnt')) document.getElementById('s_urgent_cnt').innerText = f.filter(d => d.status.includes("🚨")).length.toLocaleString();
@@ -1622,14 +1631,23 @@ function downloadFilteredStock() {
                                 if(!codeStr.includes(searchCode) && !nameStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
                         }
                         const wp = d.wp || "";
-                        if(wpF === "CHINA") return wp.includes("중국");
-                        if(wpF === "NO_CHINA") return !wp.includes("중국");
-                        if(wpF !== "ALL" && wp !== wpF) return false;
+                        if(wpF === "CHINA") {
+                                if(!wp.includes("중국")) return false;
+                        } else if(wpF === "NO_CHINA") {
+                                if(wp.includes("중국")) return false;
+                        } else if(wpF !== "ALL" && wp !== wpF) {
+                                return false;
+                        }
+                        // 카테고리 필터: "계획" 선택 시 "계획"만, "주문" 선택 시 "주문"만, "임의" 선택 시 "임의"만 표시
                         if(catF !== "ALL") {
-                                const category = d.category || "";
+                                const category = String(d.category || "").trim();
                                 if(category !== catF) return false;
                         }
-                        if(statF !== "ALL" && d.status && !d.status.includes(statF)) return false;
+                        // 상태 필터: "🚨긴급", "⚠️주의", "정상" 중 선택된 것만 표시
+                        if(statF !== "ALL") {
+                                const status = String(d.status || "").trim();
+                                if(!status.includes(statF)) return false;
+                        }
                         return true;
                 });
                 
@@ -2345,8 +2363,33 @@ async function calculateSemiProduct() {
                         if(semiAvgUsageOverrides.has(codeKey)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeKey);
                         else if(semiAvgUsageOverrides.has(codeOriginal)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeOriginal);
                         else if(semiAvgUsageOverrides.has(String(d.code || "").trim())) effectiveAvgUsage = semiAvgUsageOverrides.get(String(d.code || "").trim());
-                        d.safety = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR) : 0;
-                        d.target = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR * 1.3) : 0;
+                        
+                        // 변동계수(CV) 계산: monthlyPlans 데이터를 이용
+                        let cv = 0;
+                        if(d.monthlyPlans && Array.isArray(d.monthlyPlans) && d.monthlyPlans.length > 0) {
+                                const usageArr = d.monthlyPlans.filter(v => v > 0);
+                                if(usageArr.length > 1) {
+                                        const mean = usageArr.reduce((a, b) => a + b, 0) / usageArr.length;
+                                        if(mean > 0) {
+                                                const variance = usageArr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / usageArr.length;
+                                                const stdDev = Math.sqrt(variance);
+                                                cv = stdDev / mean;
+                                        }
+                                }
+                        }
+                        
+                        // 고도화 로직: target_A (기본), target_B (CV 고려)
+                        const safety_A = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR) : 0;
+                        const target_A = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR * 1.3) : 0;
+                        const safety_B = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR * (1 + cv * 0.5)) : 0;
+                        const target_B = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR * (1 + cv * 0.5) * 1.3) : 0;
+                        d.safety_A = safety_A;
+                        d.safety_B = safety_B;
+                        d.target_A = target_A;
+                        d.target_B = target_B;
+                        d.safety = safety_A; // 하위 호환성
+                        d.target = target_A; // 하위 호환성
+                        
                         // 반제품 소진 계산: 실재고 기준월부터 계획월 이전까지의 소진 (계획월 제외)
                         // 예: 실재고 기준월 2026-01, 계획월 2026-01 → monthsDiff=0, 소진=0 (계획월 제외)
                         // 예: 실재고 기준월 2026-01, 계획월 2026-02 → monthsDiff=1, 소진=effectiveAvgUsage*1 (1개월)
@@ -2354,8 +2397,10 @@ async function calculateSemiProduct() {
                         const monthsDiff = (planDate.getFullYear() - refDate.getFullYear()) * 12 + (planDate.getMonth() - refDate.getMonth());
                         const burn = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * Math.max(0, monthsDiff)) : 0;
                         d.burn = burn;
-                        const raw_A = (d.target + burn) - (d.stock + d.pending);
-                        const raw_B = (d.target + burn) - (d.stock + d.pending);
+                        
+                        // 고도화 로직: plan_A와 plan_B를 각각 다른 target으로 계산
+                        const raw_A = (target_A + burn) - (d.stock + d.pending);
+                        const raw_B = (target_B + burn) - (d.stock + d.pending);
                         d.plan_A = raw_A < d.unit ? 0 : Math.floor(raw_A / d.unit) * d.unit;
                         d.plan_B = raw_B < d.unit ? 0 : Math.floor(raw_B / d.unit) * d.unit;
                         if(d.plan_A < 0) d.plan_A = 0;
@@ -2389,11 +2434,52 @@ async function updateSemiSafetyTarget() {
         try {
                 if(semiProductData.length === 0) return;
                 const semiCR = parseFloat(document.getElementById('cfg_semi_china')?.value) || 2.5;
+                const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+                const planMonth = document.getElementById('plan_month')?.value || new Date().toISOString().substring(0, 7);
+                const refDate = new Date(refMonth + "-01");
+                const planDate = new Date(planMonth + "-01");
                 semiProductData.forEach(d => {
-                        d.safety = d.avgUsage > 0 ? Math.round(d.avgUsage * semiCR) : 0;
-                        d.target = d.avgUsage > 0 ? Math.round(d.avgUsage * semiCR * 1.3) : 0;
-                        const raw_A = d.target - (d.stock + d.pending);
-                        const raw_B = d.target - (d.stock + d.pending);
+                        let effectiveAvgUsage = d.avgUsage || 0;
+                        const codeKey = String(d.code || "").trim();
+                        const codeOriginal = String(d.code || "");
+                        if(semiAvgUsageOverrides.has(codeKey)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeKey);
+                        else if(semiAvgUsageOverrides.has(codeOriginal)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeOriginal);
+                        else if(semiAvgUsageOverrides.has(String(d.code || "").trim())) effectiveAvgUsage = semiAvgUsageOverrides.get(String(d.code || "").trim());
+                        
+                        // 변동계수(CV) 계산: monthlyPlans 데이터를 이용
+                        let cv = 0;
+                        if(d.monthlyPlans && Array.isArray(d.monthlyPlans) && d.monthlyPlans.length > 0) {
+                                const usageArr = d.monthlyPlans.filter(v => v > 0);
+                                if(usageArr.length > 1) {
+                                        const mean = usageArr.reduce((a, b) => a + b, 0) / usageArr.length;
+                                        if(mean > 0) {
+                                                const variance = usageArr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / usageArr.length;
+                                                const stdDev = Math.sqrt(variance);
+                                                cv = stdDev / mean;
+                                        }
+                                }
+                        }
+                        
+                        // 고도화 로직: target_A (기본), target_B (CV 고려)
+                        const safety_A = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR) : 0;
+                        const target_A = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR * 1.3) : 0;
+                        const safety_B = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR * (1 + cv * 0.5)) : 0;
+                        const target_B = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR * (1 + cv * 0.5) * 1.3) : 0;
+                        d.safety_A = safety_A;
+                        d.safety_B = safety_B;
+                        d.target_A = target_A;
+                        d.target_B = target_B;
+                        d.safety = safety_A; // 하위 호환성
+                        d.target = target_A; // 하위 호환성
+                        
+                        // 소진 계산
+                        const monthsDiff = (planDate.getFullYear() - refDate.getFullYear()) * 12 + (planDate.getMonth() - refDate.getMonth());
+                        const burn = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * Math.max(0, monthsDiff)) : 0;
+                        d.burn = burn;
+                        
+                        // 고도화 로직: plan_A와 plan_B를 각각 다른 target으로 계산
+                        const raw_A = (target_A + burn) - (d.stock + d.pending);
+                        const raw_B = (target_B + burn) - (d.stock + d.pending);
                         d.plan_A = raw_A < d.unit ? 0 : Math.floor(raw_A / d.unit) * d.unit;
                         d.plan_B = raw_B < d.unit ? 0 : Math.floor(raw_B / d.unit) * d.unit;
                         if(d.plan_A < 0) d.plan_A = 0;
@@ -2434,7 +2520,9 @@ function renderSemiMonthly() {
                         if(semiAvgUsageOverrides.has(codeKey)) displayAvgUsage = semiAvgUsageOverrides.get(codeKey);
                         else if(semiAvgUsageOverrides.has(codeOriginal)) displayAvgUsage = semiAvgUsageOverrides.get(codeOriginal);
                         else if(semiAvgUsageOverrides.has(String(d.code || "").trim())) displayAvgUsage = semiAvgUsageOverrides.get(String(d.code || "").trim());
-                        tr.innerHTML = `<td>${d.code}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="text-info bg-light"><input type="number" class="form-control form-control-sm" style="width:80px; text-align:center;" value="${displayAvgUsage}" onchange="updateSemiAvgUsage('${d.code}', this.value)"></td><td class="bg-info text-white">${(d.avg3mUsage || 0).toLocaleString()}</td><td class="bg-warning text-dark">${d.avg3mPlan.toLocaleString()}</td><td>${d.safety.toLocaleString()}</td><td>${d.target.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateSemiUnit('${d.code}', this.value)"></td><td class="text-danger fw-bold">${(d.burn || 0).toLocaleString()}</td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="plan-input"><input type="number" class="form-control form-control-sm plan-input" value="${p}" onchange="updateSemiPlanQty('${d.code}', this.value)"></td><td class="text-success fw-bold">${(p * d.price).toLocaleString()}</td>`;
+                        const t = (currentSemiLogicMode === 'V20' ? (d.target_A || d.target) : (d.target_B || d.target));
+                        const s = (currentSemiLogicMode === 'V20' ? (d.safety_A || d.safety) : (d.safety_B || d.safety));
+                        tr.innerHTML = `<td>${d.code}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="text-info bg-light"><input type="number" class="form-control form-control-sm" style="width:80px; text-align:center;" value="${displayAvgUsage}" onchange="updateSemiAvgUsage('${d.code}', this.value)"></td><td class="bg-info text-white">${(d.avg3mUsage || 0).toLocaleString()}</td><td class="bg-warning text-dark">${d.avg3mPlan.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateSemiUnit('${d.code}', this.value)"></td><td class="text-danger fw-bold">${(d.burn || 0).toLocaleString()}</td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="plan-input"><input type="number" class="form-control form-control-sm plan-input" value="${p}" onchange="updateSemiPlanQty('${d.code}', this.value)"></td><td class="text-success fw-bold">${(p * d.price).toLocaleString()}</td>`;
                         body.appendChild(tr);
                 });
                 if(document.getElementById('semi_sum_qty_box')) document.getElementById('semi_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`;
