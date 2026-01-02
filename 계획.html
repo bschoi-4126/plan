@@ -2485,6 +2485,8 @@ async function updateSemiSafetyTarget() {
                         if(d.plan_A < 0) d.plan_A = 0;
                         if(d.plan_B < 0) d.plan_B = 0;
                 });
+                // calculateSemiProduct를 호출하여 기입고(pending)도 함께 재계산
+                await calculateSemiProduct();
                 renderSemiMonthly();
                 calculateSemiAnnual();
         } catch(e) { console.error("반제품 안전/적정재고 업데이트 오류:", e); }
@@ -2507,12 +2509,17 @@ function renderSemiMonthly() {
                         }
                         return true;
                 });
+                // 합계는 필터링된 전체 데이터에 대해 계산 (완제품과 동일하게)
                 let tQ = 0, tA = 0, tStockA = 0;
-                f.slice(0, displayLimits.semiMonthly).forEach(d => {
+                f.forEach(d => {
                         const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                         tQ += p;
                         tA += (p * d.price);
                         tStockA += (d.stock * d.price);
+                });
+                // 렌더링은 표시 제한 내에서만
+                f.slice(0, displayLimits.semiMonthly).forEach(d => {
+                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                         const tr = document.createElement('tr');
                         const codeKey = String(d.code || "").trim();
                         const codeOriginal = String(d.code || "");
