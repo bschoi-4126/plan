@@ -49,16 +49,18 @@
                 <div class="github-config row g-3 align-items-center">
                         <div class="col-md-4"><label class="fw-bold mb-1 small">🔑 GitHub Token</label><input type="password" id="gh_token" class="form-control form-control-sm"></div>
                         <div class="col-md-3"><label class="fw-bold mb-1 small">📅 실재고 기준월</label><input type="month" id="ref_month" class="form-control form-control-sm"></div>
-                        <div class="col-md-5 d-flex gap-2 align-items-end"><button class="btn btn-dark btn-sm w-100" onclick="saveToGithub()">💾 현재 계획 저장(확정)</button><button class="btn btn-outline-dark btn-sm w-100" onclick="loadFromGithub()">📂 저장된 계획 로드</button><button class="btn btn-success btn-sm" onclick="saveUnitOverridesToGithub()" title="포장단위 설정 저장">💾 포장</button></div>
+                        <div class="col-md-5 d-flex gap-2 align-items-end"><button class="btn btn-dark btn-sm w-100" onclick="saveToGithub()">💾 현재 계획 저장(확정)</button><button class="btn btn-outline-dark btn-sm w-100" onclick="loadFromGithub()">📂 저장된 계획 로드</button><button class="btn btn-success btn-sm" onclick="saveUnitOverridesToGithub()" title="포장단위 설정 저장">💾 포장</button><button class="btn btn-outline-success btn-sm" onclick="loadUnitOverridesFromGithubAll()" title="포장단위 설정 불러오기">📥 포장</button></div>
                 </div>
                 <div class="row g-3 mb-3">
                         <div class="col-md-3"><label class="fw-bold small">1. 누적 판매</label><span id="status_sales" class="cache-status">(저장됨 ✅)</span><input type="file" id="f_sales" class="form-control form-control-sm" multiple></div>
                         <div class="col-md-3"><label class="fw-bold small">2. 실재고</label><span id="status_stock" class="cache-status">(저장됨 ✅)</span><input type="file" id="f_stock" class="form-control form-control-sm"></div>
                         <div class="col-md-3"><label class="fw-bold small text-primary">3. 마스터</label><span id="status_master" class="cache-status">(저장됨 ✅)</span><input type="file" id="f_wp" class="form-control form-control-sm"></div>
                         <div class="col-md-3"><label class="fw-bold small text-success">4. 계획 일괄 업로드</label><input type="file" id="f_batch_plan" class="form-control form-control-sm" accept=".xlsx,.xls" onchange="handleBatchPlanUpload(event)"></div>
+                        <div class="col-md-3"><label class="fw-bold small text-warning">5. 반제품 데이터</label><span id="status_semi" class="cache-status">(저장됨 ✅)</span><input type="file" id="f_semi" class="form-control form-control-sm" accept=".xlsx,.xls" onchange="handleSemiProductUpload(event)"></div>
                 </div>
                 <div class="row g-2 align-items-center p-2 bg-light rounded border">
                         <div class="col-auto">🇨🇳 중국: <input type="number" id="cfg_china" style="width:45px;" value="1.8" onchange="saveConfig()"></div>
+                        <div class="col-auto ms-2">📦 중국 반제품: <input type="number" id="cfg_semi_china" style="width:45px;" value="2.5" onchange="saveConfig(); updateSemiSafetyTarget();"></div>
                         <div class="col-auto ms-2">🏢 본사: <input type="number" id="cfg_other" style="width:45px;" value="0.5" onchange="saveConfig()"></div>
                         <div class="col-auto ms-2">📉 최소기준(Min): <input type="number" id="cfg_min_limit" style="width:40px;" value="1" onchange="saveConfig()"></div>
                         <div class="col-auto ms-2 border-start ps-3"><label class="fw-bold text-danger small">🚨 긴급 기준:</label><input type="number" id="cfg_urgent_limit" style="width:45px;" value="0.2" step="0.1" onchange="saveConfig()"></div>
@@ -73,6 +75,8 @@
                 <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#stock-pane" type="button" role="tab" onclick="resetLimits(); renderStock();">📊 현재고</button></li>
                 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#monthly-pane" type="button" role="tab" onclick="resetLimits(); renderMonthly();">📅 계획 수립</button></li>
                 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#annual-pane" type="button" role="tab" onclick="resetLimits(); renderAnnual();">📈 연간 예측</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#semi-monthly-pane" type="button" role="tab" onclick="resetLimits(); renderSemiMonthly();">📦 계획 수립(반제품)</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#semi-annual-pane" type="button" role="tab" onclick="resetLimits(); renderSemiAnnual();">📊 연간 예측(반제품)</button></li>
                 <li class="nav-item"><button class="nav-link text-danger" data-bs-toggle="tab" data-bs-target="#dashboard-pane" type="button" role="tab" onclick="updateDashboardCharts()">🧠 AI 인사이트</button></li>
                 <li class="nav-item"><button class="nav-link text-success fw-bold" data-bs-toggle="tab" data-bs-target="#simulation-pane" type="button" role="tab">🧪 알고리즘 검증</button></li>
         </ul>
@@ -95,8 +99,9 @@
                                         <label class="fw-bold small mb-0" style="min-width: 80px;">🔍 검색:</label>
                                         <input type="text" id="s_search_code" class="form-control form-control-sm" placeholder="품목코드/품목명/규격 검색" onkeyup="renderStock()">
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-3 d-flex gap-2 align-items-center">
                                         <div class="summary-box text-danger mb-0 text-center" style="font-weight: 800; border: 2px solid #dc3545;">🚨 긴급: <span id="s_urgent_cnt">0</span>건</div>
+                                        <button class="btn btn-danger btn-sm fw-bold" onclick="downloadFilteredStock()" title="현재 필터링된 데이터 엑셀 다운로드">📥 엑셀</button>
                                 </div>
                         </div>
                         <div class="table-container">
@@ -112,7 +117,7 @@
                         <div class="row mb-3 align-items-center text-center">
                                 <div class="col-md-3"><div class="month-selector"><button class="btn-month" onclick="changeMonth(-1)">◀</button><div id="month_display" class="month-display">선택안됨</div><button class="btn-month" onclick="changeMonth(1)">▶</button><input type="month" id="plan_month" style="display:none;" onchange="syncMonthDisplay()"></div></div>
                                 <div class="col-md-3"><div class="logic-switcher"><button class="logic-btn active" id="btn_logic_v20" onclick="switchLogic('V20')">기존 로직</button><button class="logic-btn" id="btn_logic_v21" onclick="switchLogic('V21')">고도화 로직(AI)</button></div></div>
-                                <div class="col-md-4 d-flex gap-2"><div class="summary-box text-primary" id="m_sum_qty_box">수량: 0 EA</div><div class="summary-box text-success" id="m_sum_amt_box">금액: 0 원</div></div>
+                                <div class="col-md-4 d-flex gap-2"><div class="summary-box text-info" id="m_sum_stock_amt_box">현재고: 0 원</div><div class="summary-box text-primary" id="m_sum_qty_box">수량: 0 EA</div><div class="summary-box text-success" id="m_sum_amt_box">금액: 0 원</div></div>
                                 <div class="col-md-2"><button class="btn btn-success fw-bold btn-sm w-100" onclick="downloadMonthly()">📥 다운로드</button></div>
                         </div>
                         <div class="row mb-2 px-3 align-items-center">
@@ -181,6 +186,44 @@
                         </div>
                 </div>
 
+                <div class="tab-pane fade" id="semi-monthly-pane" role="tabpanel">
+                        <div class="row mb-3 align-items-center text-center">
+                                <div class="col-md-3"><div class="month-selector"><button class="btn-month" onclick="changeSemiMonth(-1)">◀</button><div id="semi_month_display" class="month-display">선택안됨</div><button class="btn-month" onclick="changeSemiMonth(1)">▶</button><input type="month" id="semi_plan_month" style="display:none;" onchange="syncSemiMonthDisplay()"></div></div>
+                                <div class="col-md-3"><div class="logic-switcher"><button class="logic-btn active" id="btn_semi_logic_v20" onclick="switchSemiLogic('V20')">기존 로직</button><button class="logic-btn" id="btn_semi_logic_v21" onclick="switchSemiLogic('V21')">고도화 로직(AI)</button></div></div>
+                                <div class="col-md-4 d-flex gap-2"><div class="summary-box text-info" id="semi_sum_stock_amt_box">현재고: 0 원</div><div class="summary-box text-primary" id="semi_sum_qty_box">수량: 0 EA</div><div class="summary-box text-success" id="semi_sum_amt_box">금액: 0 원</div></div>
+                                <div class="col-md-2"><button class="btn btn-success fw-bold btn-sm w-100" onclick="downloadSemiMonthly()">📥 다운로드</button></div>
+                        </div>
+                        <div class="row mb-2 px-3 align-items-center">
+                                <div class="col-md-2"><select id="semi_sel_type" class="form-select form-select-sm" onchange="renderSemiMonthly()"><option value="ALL">전체 기종</option></select></div>
+                                <div class="col-md-2"><input type="text" id="semi_search_code" class="form-control form-control-sm" placeholder="품목코드/품목명/규격 검색" onkeyup="renderSemiMonthly()"></div>
+                                <div class="col-md-8 fw-bold text-muted small ps-3">* 반제품 계획 수립 시 해당 달로 이동 후 수동 입력 및 저장을 수행하세요.</div>
+                        </div>
+                        <div class="table-container">
+                                <table class="table align-middle mb-0">
+                                        <thead><tr><th onclick="sortTable('semiMonthly', 0)">코드</th><th onclick="sortTable('semiMonthly', 1)">규격</th><th onclick="sortTable('semiMonthly', 2)">단가</th><th onclick="sortTable('semiMonthly', 3)">현재고</th><th onclick="sortTable('semiMonthly', 4)">평균 사용량</th><th onclick="sortTable('semiMonthly', 5)">최근 3개월(사용)</th><th onclick="sortTable('semiMonthly', 6)">최근 3개월(계획)</th><th onclick="sortTable('semiMonthly', 7)">안전</th><th onclick="sortTable('semiMonthly', 8)">적정</th><th onclick="sortTable('semiMonthly', 9)">포장단위</th><th onclick="sortTable('semiMonthly', 10)">소진</th><th onclick="sortTable('semiMonthly', 11)">기입고</th><th onclick="sortTable('semiMonthly', 12)">최종계획</th><th onclick="sortTable('semiMonthly', 13)">계획금액</th></tr></thead>
+                                        <tbody id="semi_monthly_body"></tbody>
+                                </table>
+                                <div class="load-more-container"><button class="btn btn-outline-dark btn-load-more" onclick="loadMore('semiMonthly')">+ 데이터 50개 더 불러오기</button></div>
+                        </div>
+                </div>
+
+                <div class="tab-pane fade" id="semi-annual-pane" role="tabpanel">
+                        <div class="row mb-3 align-items-center text-center bg-white p-2 rounded shadow-sm mx-0">
+                                <div class="col-md-2"><select id="semi_a_sel_type" class="form-select form-select-sm" onchange="renderSemiAnnual()"><option value="ALL">전체 기종</option></select></div>
+                                <div class="col-md-10 d-flex gap-2 justify-content-end">
+                                        <div class="summary-box">연간 수량: <span id="semi_a_sum_qty">0</span> EA</div>
+                                        <div class="summary-box text-success">연간 금액: <span id="semi_a_sum_amt">0</span> 원</div>
+                                </div>
+                        </div>
+                        <div class="table-container">
+                                <table class="table align-middle mb-0">
+                                        <thead id="semi_annual_head"></thead>
+                                        <tbody id="semi_annual_body"></tbody>
+                                </table>
+                                <div class="load-more-container"><button class="btn btn-outline-dark btn-load-more" onclick="loadMore('semiAnnual')">+ 데이터 50개 더 불러오기</button></div>
+                        </div>
+                </div>
+
                 <div class="tab-pane fade" id="dashboard-pane" role="tabpanel">
                         <div class="row">
                                 <div class="col-md-6"><div class="chart-container"><h6 class="fw-bold">재고 가치 등급 (ABC)</h6><canvas id="abcChart"></canvas></div><div id="abcDetailList" class="mt-3 p-3 bg-light rounded" style="display:none;"></div></div>
@@ -195,13 +238,16 @@
 <script>
 let rawData = { master: new Map(), salesByYear: {}, stock: {}, fullStockItems: [] };
 let processedData = []; let annualData = []; let simResults = []; let shortageDetails = [];
-let displayLimits = { stock: 50, monthly: 50, sim: 50, annual: 50 }; 
-let sortState = { stock: { idx: -1, asc: true }, monthly: { idx: -1, asc: true }, sim: { idx: -1, asc: true }, annual: { idx: -1, asc: true } };
+let semiProductData = []; let semiAnnualData = [];
+let displayLimits = { stock: 50, monthly: 50, sim: 50, annual: 50, semiMonthly: 50, semiAnnual: 50 }; 
+let sortState = { stock: { idx: -1, asc: true }, monthly: { idx: -1, asc: true }, sim: { idx: -1, asc: true }, annual: { idx: -1, asc: true }, semiMonthly: { idx: -1, asc: true }, semiAnnual: { idx: -1, asc: true } };
 let charts = {};
 let currentLogicMode = 'V20';
 let savedFilters = { wp: {}, cat: {}, status: {} };
 let abcGradeItems = { A: [], B: [], C: [] };
 let unitOverrides = new Map();
+let semiUnitOverrides = new Map();
+let semiAvgUsageOverrides = new Map();
 const REPO_PATH = "bschoi-4126/plan";
 
 const DB_NAME = "PPS_DB_V41"; const STORE_NAME = "CachedFiles";
@@ -221,10 +267,16 @@ window.addEventListener('DOMContentLoaded', async () => {
                         try {
                                 const cfg = JSON.parse(savedConfig);
                                 if(cfg.china !== undefined) document.getElementById('cfg_china').value = cfg.china;
+                                if(cfg.semiChina !== undefined) document.getElementById('cfg_semi_china').value = cfg.semiChina;
                                 if(cfg.other !== undefined) document.getElementById('cfg_other').value = cfg.other;
                                 if(cfg.minLimit !== undefined) document.getElementById('cfg_min_limit').value = cfg.minLimit;
                                 if(cfg.urgentLimit !== undefined) document.getElementById('cfg_urgent_limit').value = cfg.urgentLimit;
                         } catch(e) {}
+                }
+                const savedSemiMonth = localStorage.getItem('jemini_semi_plan_month');
+                if(savedSemiMonth && document.getElementById('semi_plan_month')) {
+                        document.getElementById('semi_plan_month').value = savedSemiMonth;
+                        syncSemiMonthDisplay();
                 }
                 const savedFiltersData = localStorage.getItem('jemini_filters');
                 if(savedFiltersData) {
@@ -235,10 +287,27 @@ window.addEventListener('DOMContentLoaded', async () => {
                         try { unitOverrides = new Map(JSON.parse(savedUnits)); } catch(e) {}
                 }
                 await loadUnitOverridesFromGithub();
+                const savedSemiUnits = localStorage.getItem('jemini_semi_unit_overrides');
+                if(savedSemiUnits) {
+                        try { semiUnitOverrides = new Map(JSON.parse(savedSemiUnits)); } catch(e) {}
+                }
+                const savedSemiAvgUsage = localStorage.getItem('jemini_semi_avg_usage_overrides');
+                if(savedSemiAvgUsage) {
+                        try { semiAvgUsageOverrides = new Map(JSON.parse(savedSemiAvgUsage)); } catch(e) {}
+                }
+                await loadSemiUnitOverridesFromGithub();
+                await loadSemiAvgUsageOverridesFromGithub();
                 const c_sales = await loadFromDB("sales"), c_stock = await loadFromDB("stock"), c_master = await loadFromDB("master");
                 if(c_sales) { rawData.salesByYear = c_sales; if(document.getElementById('status_sales')) document.getElementById('status_sales').style.display = 'inline'; }
                 if(c_stock) { rawData.stock = c_stock.stock; rawData.fullStockItems = c_stock.items; if(document.getElementById('status_stock')) document.getElementById('status_stock').style.display = 'inline'; }
                 if(c_master) { rawData.master = new Map(Object.entries(c_master)); if(document.getElementById('status_master')) document.getElementById('status_master').style.display = 'inline'; }
+                const c_semi = await loadFromDB("semi");
+                if(c_semi && c_semi.length > 0) { 
+                        semiProductData = c_semi; 
+                        if(document.getElementById('status_semi')) document.getElementById('status_semi').style.display = 'inline'; 
+                        updateSemiTypeFilter();
+                        await calculateSemiProduct(); 
+                }
                 const sSearchInit = document.getElementById('s_search_code');
                 if(sSearchInit) sSearchInit.value = "";
                 const mSearchInit = document.getElementById('m_search_code');
@@ -264,6 +333,7 @@ function saveConfig() {
         try {
                 const config = {
                         china: parseFloat(document.getElementById('cfg_china')?.value) || 1.8,
+                        semiChina: parseFloat(document.getElementById('cfg_semi_china')?.value) || 2.5,
                         other: parseFloat(document.getElementById('cfg_other')?.value) || 0.5,
                         minLimit: parseFloat(document.getElementById('cfg_min_limit')?.value) || 1,
                         urgentLimit: parseFloat(document.getElementById('cfg_urgent_limit')?.value) || 0.2
@@ -272,8 +342,8 @@ function saveConfig() {
         } catch(e) { console.error("설정 저장 오류:", e); }
 }
 function switchLogic(mode) { currentLogicMode = mode; document.getElementById('btn_logic_v20').classList.toggle('active', mode === 'V20'); document.getElementById('btn_logic_v21').classList.toggle('active', mode === 'V21'); renderMonthly(); }
-function resetLimits() { displayLimits = { stock: 50, monthly: 50, sim: 50, annual: 50 }; }
-function loadMore(type) { displayLimits[type] += 50; if(type==='stock') renderStock(); else if(type==='monthly') renderMonthly(); else if(type==='annual') renderAnnual(); else if(type==='sim') { if(simResults.length > 0) { const empty = Array(12).fill(0); renderSimResults_Table(empty, empty, empty, empty, empty, empty, empty, 0); } } }
+function resetLimits() { displayLimits = { stock: 50, monthly: 50, sim: 50, annual: 50, semiMonthly: 50, semiAnnual: 50 }; }
+function loadMore(type) { displayLimits[type] += 50; if(type==='stock') renderStock(); else if(type==='monthly') renderMonthly(); else if(type==='annual') renderAnnual(); else if(type==='semiMonthly') renderSemiMonthly(); else if(type==='semiAnnual') renderSemiAnnual(); else if(type==='sim') { if(simResults.length > 0) { const empty = Array(12).fill(0); renderSimResults_Table(empty, empty, empty, empty, empty, empty, empty, 0); } } }
 
 async function runAnalysis() {
         try {
@@ -283,7 +353,7 @@ async function runAnalysis() {
                 try {
                         if(fT) { const sRaw = await readExcel(fT); rawData.stock = {}; rawData.fullStockItems = []; sRaw.slice(2).forEach(r => { if(!r[1]) return; const c = String(r[1]).trim(); const item = { code:c, price:Number(String(r[14]||"0").replace(/,/g,"")), qty:Number(String(r[16]||"0").replace(/,/g,"")), amt:Number(String(r[13]||"0").replace(/,/g,"")), name:String(r[2]||"").trim(), spec:String(r[3]||"").trim() }; rawData.stock[c] = item; rawData.fullStockItems.push(item); }); await saveToDB("stock", { stock: rawData.stock, items: rawData.fullStockItems }); }
                         if(fS && fS.length) { for(let f of fS) { const year = (f.name.match(/\d{4}/) || ["2025"])[0]; const raw = await readExcel(f); if(!rawData.salesByYear[year]) rawData.salesByYear[year] = {}; for(let i=0; i<raw.length; i++){ if(String(raw[i][5]||"").includes("생산입고량")) { const c = String(raw[i][1]||"").trim(); const nextRow = raw[i+1]; if(c && nextRow && String(nextRow[5]||"").includes("매출량")) rawData.salesByYear[year][c] = [6,8,10,12,14,16,18,20,22,24,26,28].map(idx => Number(String(nextRow[idx] || "0").replace(/,/g, "")) || 0); } } } await saveToDB("sales", rawData.salesByYear); }
-                        if(fW) { rawData.master = new Map(); let lastWp = "기타"; const raw = await readExcel(fW); raw.slice(6).forEach(r => { if(r[3]) lastWp = String(r[3]).trim(); const c = String(r[7] || "").trim(); if(!c) return; const cat = String(r[5]||"주문").trim(); const unit = Number(String(r[10]||"10").replace(/,/g,"")) || 10; const ex = rawData.master.get(c); let finalCat = (ex && ex.category === "계획") ? "계획" : cat; rawData.master.set(c, { code:c, wp:lastWp, category:finalCat, name:String(r[8]||"").trim(), spec:String(r[9]||"").trim(), unit }); }); await saveToDB("master", Object.fromEntries(rawData.master)); }
+                        if(fW) { rawData.master = new Map(); let lastWp = "기타"; const raw = await readExcel(fW); raw.slice(6).forEach(r => { if(r[3] && String(r[3]).trim()) lastWp = String(r[3]).trim(); const c = String(r[7] || "").trim(); if(!c) return; const cat = String(r[5]||"주문").trim(); const unit = Number(String(r[10]||"10").replace(/,/g,"")) || 10; const ex = rawData.master.get(c); let finalCat = (ex && ex.category === "계획") ? "계획" : cat; const wpFromRow = r[3] ? String(r[3]).trim() : null; let wpForThisItem; if(wpFromRow) { wpForThisItem = wpFromRow; } else if(ex && ex.wp && ex.wp !== "기타") { wpForThisItem = ex.wp; } else { wpForThisItem = lastWp; } rawData.master.set(c, { code:c, wp:wpForThisItem || "기타", category:finalCat, name:String(r[8]||"").trim(), spec:String(r[9]||"").trim(), unit }); }); await saveToDB("master", Object.fromEntries(rawData.master)); }
                         await reCalculate(); location.reload();
                 } catch(e) { alert("분석 실패: " + (e.message || e)); console.error(e); }
                 finally { if(loadingEl) loadingEl.style.display = 'none'; }
@@ -404,6 +474,8 @@ async function reCalculate() {
                 if(sSearchEl) sSearchEl.value = "";
                 const mSearchEl = document.getElementById('m_search_code');
                 if(mSearchEl) mSearchEl.value = "";
+                const semiSearchEl = document.getElementById('semi_search_code');
+                if(semiSearchEl) semiSearchEl.value = "";
                 renderStock(); renderMonthly(); calculateAnnual();
         } catch(e) { console.error("재계산 오류:", e); alert("데이터 처리 중 오류가 발생했습니다."); }
 }
@@ -423,10 +495,14 @@ function renderStock() {
                                 const specStr = String(d.spec || "");
                                 if(!codeStr.includes(searchCode) && !nameStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
                         }
-                        if(wpF === "CHINA") return d.wp && d.wp.includes("중국");
-                        if(wpF === "NO_CHINA") return d.wp && !d.wp.includes("중국");
-                        if(wpF !== "ALL" && d.wp !== wpF) return false;
-                        if(catF !== "ALL" && d.category && !d.category.includes(catF)) return false;
+                        const wp = d.wp || "";
+                        if(wpF === "CHINA") return wp.includes("중국");
+                        if(wpF === "NO_CHINA") return !wp.includes("중국");
+                        if(wpF !== "ALL" && wp !== wpF) return false;
+                        if(catF !== "ALL") {
+                                const category = d.category || "";
+                                if(category !== catF) return false;
+                        }
                         if(statF !== "ALL" && d.status && !d.status.includes(statF)) return false;
                         return true;
                 });
@@ -475,7 +551,8 @@ function renderMonthly() {
                         if(d.wp && d.wp.includes("중국")) return true; 
                         return d.category === "계획"; 
                 });
-                let tQ = 0, tA = 0; f.forEach(d => { const p = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B); tQ += p; tA += (p * d.price); });
+                let tQ = 0, tA = 0, tStockA = 0; f.forEach(d => { const p = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B); tQ += p; tA += (p * d.price); tStockA += (d.stock * d.price); });
+                if(document.getElementById('m_sum_stock_amt_box')) document.getElementById('m_sum_stock_amt_box').innerText = `현재고: ${tStockA.toLocaleString()} 원`;
                 if(document.getElementById('m_sum_qty_box')) document.getElementById('m_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`; 
                 if(document.getElementById('m_sum_amt_box')) document.getElementById('m_sum_amt_box').innerText = `금액: ${tA.toLocaleString()} 원`;
                 if(wpF === "ALL") {
@@ -531,21 +608,54 @@ async function saveUnitOverridesToGithub() {
                 const t = document.getElementById('gh_token')?.value;
                 if(!t) return alert("GitHub Token을 먼저 입력하세요.");
                 const data = Object.fromEntries(unitOverrides);
-                if(Object.keys(data).length === 0) return alert("저장할 포장단위 설정이 없습니다.");
-                const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-                const path = `data/unit_overrides.json`;
-                let sha = "";
-                try {
-                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } });
-                        if(res.ok) sha = (await res.json()).sha;
-                } catch(e) {}
-                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { 
-                        method: "PUT", 
-                        headers: { Authorization: `token ${t}` }, 
-                        body: JSON.stringify({ message: `포장단위 설정 저장`, content, sha }) 
-                });
-                alert(`포장단위 설정 ${Object.keys(data).length}개 저장 완료!`);
-        } catch(e) { console.error("포장단위 저장 오류:", e); alert("포장단위 저장 중 오류가 발생했습니다."); }
+                const semiData = Object.fromEntries(semiUnitOverrides);
+                const semiAvgUsageData = Object.fromEntries(semiAvgUsageOverrides);
+                if(Object.keys(data).length === 0 && Object.keys(semiData).length === 0 && Object.keys(semiAvgUsageData).length === 0) return alert("저장할 설정이 없습니다.");
+                if(Object.keys(data).length > 0) {
+                        const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+                        const path = `data/unit_overrides.json`;
+                        let sha = "";
+                        try {
+                                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } });
+                                if(res.ok) sha = (await res.json()).sha;
+                        } catch(e) {}
+                        await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { 
+                                method: "PUT", 
+                                headers: { Authorization: `token ${t}` }, 
+                                body: JSON.stringify({ message: `포장단위 설정 저장`, content, sha }) 
+                        });
+                }
+                if(Object.keys(semiData).length > 0) {
+                        const content = btoa(unescape(encodeURIComponent(JSON.stringify(semiData))));
+                        const path = `data/semi_unit_overrides.json`;
+                        let sha = "";
+                        try {
+                                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } });
+                                if(res.ok) sha = (await res.json()).sha;
+                        } catch(e) {}
+                        await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { 
+                                method: "PUT", 
+                                headers: { Authorization: `token ${t}` }, 
+                                body: JSON.stringify({ message: `반제품 포장단위 설정 저장`, content, sha }) 
+                        });
+                }
+                if(Object.keys(semiAvgUsageData).length > 0) {
+                        const content = btoa(unescape(encodeURIComponent(JSON.stringify(semiAvgUsageData))));
+                        const path = `data/semi_avg_usage_overrides.json`;
+                        let sha = "";
+                        try {
+                                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } });
+                                if(res.ok) sha = (await res.json()).sha;
+                        } catch(e) {}
+                        await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { 
+                                method: "PUT", 
+                                headers: { Authorization: `token ${t}` }, 
+                                body: JSON.stringify({ message: `반제품 평균 사용량 설정 저장`, content, sha }) 
+                        });
+                }
+                const totalCount = Object.keys(data).length + Object.keys(semiData).length + Object.keys(semiAvgUsageData).length;
+                alert(`설정 ${totalCount}개 저장 완료! (일반 포장: ${Object.keys(data).length}개, 반제품 포장: ${Object.keys(semiData).length}개, 반제품 평균 사용량: ${Object.keys(semiAvgUsageData).length}개)`);
+        } catch(e) { console.error("설정 저장 오류:", e); alert("설정 저장 중 오류가 발생했습니다."); }
 }
 async function loadUnitOverridesFromGithub() {
         try {
@@ -557,8 +667,58 @@ async function loadUnitOverridesFromGithub() {
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
                         unitOverrides = new Map(Object.entries(loaded));
                         localStorage.setItem('jemini_unit_overrides', JSON.stringify([...unitOverrides]));
+                        return true;
                 }
         } catch(e) {}
+        return false;
+}
+
+async function loadUnitOverridesFromGithubAll() {
+        try {
+                const t = document.getElementById('gh_token')?.value;
+                if(!t) return alert("GitHub Token을 먼저 입력하세요.");
+                let loadedCount = 0;
+                // 일반 포장단위 로드
+                const res1 = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/unit_overrides.json`, { headers: { Authorization: `token ${t}` } });
+                if(res1.ok) {
+                        const data = await res1.json();
+                        const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                        unitOverrides = new Map(Object.entries(loaded));
+                        localStorage.setItem('jemini_unit_overrides', JSON.stringify([...unitOverrides]));
+                        loadedCount += Object.keys(loaded).length;
+                }
+                // 반제품 포장단위 로드
+                const res2 = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_unit_overrides.json`, { headers: { Authorization: `token ${t}` } });
+                if(res2.ok) {
+                        const data = await res2.json();
+                        const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                        semiUnitOverrides = new Map(Object.entries(loaded));
+                        localStorage.setItem('jemini_semi_unit_overrides', JSON.stringify([...semiUnitOverrides]));
+                        loadedCount += Object.keys(loaded).length;
+                }
+                // 반제품 평균 사용량 로드
+                const res3 = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_avg_usage_overrides.json`, { headers: { Authorization: `token ${t}` } });
+                if(res3.ok) {
+                        const data = await res3.json();
+                        const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                        semiAvgUsageOverrides = new Map(Object.entries(loaded));
+                        localStorage.setItem('jemini_semi_avg_usage_overrides', JSON.stringify([...semiAvgUsageOverrides]));
+                        loadedCount += Object.keys(loaded).length;
+                        await calculateSemiProduct();
+                }
+                // 데이터 재계산 및 렌더링
+                if(loadedCount > 0) {
+                        await reCalculate();
+                        renderMonthly();
+                        renderSemiMonthly();
+                        alert(`포장단위 설정 ${loadedCount}개 로드 완료!`);
+                } else {
+                        alert("저장된 포장단위 설정이 없습니다.");
+                }
+        } catch(e) {
+                console.error("포장단위 로드 오류:", e);
+                alert("포장단위 설정 로드 중 오류가 발생했습니다.");
+        }
 }
 function calculateAnnual() { 
         try {
@@ -799,6 +959,40 @@ function sortTable(tab, idx) {
                 renderSimResults_Table(empty, empty, empty, empty, empty, empty, empty, 0); 
         }
         else if (tab === 'annual') { annualData.sort((a,b) => comp(a,b, ['code','name','spec','avg','','','','','','','','','','','','annualSum'][idx] || 'annualSum')); renderAnnual(); }
+        else if (tab === 'semiMonthly') { 
+                const semiKeys = ['code','spec','price','stock','avgUsage','avg3mUsage','avg3mPlan','safety','target','unit','burn','pending','plan_A','amt'];
+                const key = semiKeys[idx];
+                if(key === 'amt') {
+                        semiProductData.sort((a,b) => {
+                                const v1 = a.price * (currentSemiLogicMode==='V20'?a.plan_A:a.plan_B);
+                                const v2 = b.price * (currentSemiLogicMode==='V20'?b.plan_A:b.plan_B);
+                                return s.asc ? v1 - v2 : v2 - v1;
+                        });
+                } else {
+                        semiProductData.sort((a,b) => {
+                                let v1 = a[key], v2 = b[key];
+                                if(key === 'plan_A') { v1 = currentSemiLogicMode==='V20'?a.plan_A:a.plan_B; v2 = currentSemiLogicMode==='V20'?b.plan_A:b.plan_B; }
+                                if (typeof v1 === 'string') return s.asc ? v1.localeCompare(v2) : v2.localeCompare(v1);
+                                return s.asc ? v1 - v2 : v2 - v1;
+                        });
+                }
+                renderSemiMonthly(); 
+        }
+        else if (tab === 'semiAnnual') {
+                const semiAKeys = ['code','spec','avg3mPlan','plans','plans','plans','plans','plans','plans','plans','plans','plans','plans','plans','plans','annualSum'];
+                const key = semiAKeys[idx];
+                if(key === 'plans') {
+                        const monthIdx = idx - 3;
+                        semiAnnualData.sort((a,b) => {
+                                const v1 = a.plans[monthIdx] || 0;
+                                const v2 = b.plans[monthIdx] || 0;
+                                return s.asc ? v1 - v2 : v2 - v1;
+                        });
+                } else {
+                        semiAnnualData.sort((a,b) => comp(a,b, key));
+                }
+                renderSemiAnnual(); 
+        }
 }
 
 function updateDashboardCharts() {
@@ -977,16 +1171,30 @@ async function saveToGithub() {
         } catch(e) { console.error("저장 오류:", e); alert("저장 중 오류가 발생했습니다."); }
 }
 
-function loadFromGithub() {
+async function loadFromGithub() {
         try {
                 const t = document.getElementById('gh_token')?.value, m = document.getElementById('plan_month')?.value;
                 if(!t || !m) return alert("GitHub 정보 확인!");
-                fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}.json`, { headers: { Authorization: `token ${t}` } }).then(res => res.json()).then(data => {
+                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}.json`, { headers: { Authorization: `token ${t}` } });
+                if(res.ok) {
+                        const data = await res.json();
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
                         loaded.forEach(ld => { const target = processedData.find(pd => pd.code === ld.code); if(target) { if(currentLogicMode === 'V20') target.plan_A = ld.planQty; else target.plan_B = ld.planQty; } });
-                        renderMonthly(); alert("기존 계획 로드 완료!");
-                }).catch(e => { console.error("로드 오류:", e); alert("저장된 데이터가 없습니다."); });
-        } catch(e) { console.error("로드 함수 오류:", e); alert("로드 중 오류가 발생했습니다."); }
+                        renderMonthly(); 
+                        // 포장단위 설정도 함께 로드
+                        try {
+                                await loadUnitOverridesFromGithubAll();
+                        } catch(e) {
+                                console.error("포장단위 로드 오류:", e);
+                        }
+                        alert("기존 계획 로드 완료!");
+                } else {
+                        alert("저장된 데이터가 없습니다.");
+                }
+        } catch(e) { 
+                console.error("로드 함수 오류:", e); 
+                alert("로드 중 오류가 발생했습니다."); 
+        }
 }
 
 function deleteItem(code) { 
@@ -1113,6 +1321,144 @@ function downloadMonthly() {
                 XLSX.writeFile(wb, `${planMonth.replace('-', '')}월 생산 계획.xlsx`);
         } catch(e) { console.error("다운로드 오류:", e); alert("다운로드 중 오류가 발생했습니다."); }
 }
+
+function downloadFilteredStock() {
+        try {
+                const wpF = document.getElementById('s_sel_wp')?.value || "ALL";
+                const catF = document.getElementById('s_sel_cat')?.value || "ALL";
+                const statF = document.getElementById('s_sel_status')?.value || "ALL";
+                const searchCodeEl = document.getElementById('s_search_code');
+                const searchCode = searchCodeEl ? (searchCodeEl.value || "").trim() : "";
+                
+                // renderStock()과 동일한 필터링 로직 적용
+                const f = processedData.filter(d => { 
+                        if(!d || d.stock <= 0) return false;
+                        if(searchCode && searchCode.length > 0) {
+                                const codeStr = String(d.code || "");
+                                const nameStr = String(d.name || "");
+                                const specStr = String(d.spec || "");
+                                if(!codeStr.includes(searchCode) && !nameStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
+                        }
+                        const wp = d.wp || "";
+                        if(wpF === "CHINA") return wp.includes("중국");
+                        if(wpF === "NO_CHINA") return !wp.includes("중국");
+                        if(wpF !== "ALL" && wp !== wpF) return false;
+                        if(catF !== "ALL") {
+                                const category = d.category || "";
+                                if(category !== catF) return false;
+                        }
+                        if(statF !== "ALL" && d.status && !d.status.includes(statF)) return false;
+                        return true;
+                });
+                
+                if(f.length === 0) {
+                        alert("다운로드할 데이터가 없습니다.");
+                        return;
+                }
+                
+                const wb = XLSX.utils.book_new();
+                const wsData = [];
+                
+                // 헤더
+                wsData.push(["상태", "코드", "품목명", "규격", "단가", "작업장", "구분", "현재고", "금액", "평균", "평균금액", "안전", "안전금액", "적정", "적정금액"]);
+                
+                // 데이터
+                f.forEach(d => {
+                        const avgAmt = (d.avg || 0) * d.price;
+                        const safetyAmt = (d.safety_A || 0) * d.price;
+                        const targetAmt = (d.target_A || 0) * d.price;
+                        wsData.push([
+                                d.status || "",
+                                d.code || "",
+                                d.name || "",
+                                d.spec || "",
+                                d.price || 0,
+                                d.wp || "",
+                                d.category || "",
+                                d.stock || 0,
+                                d.stockAmt || 0,
+                                d.avg || 0,
+                                avgAmt,
+                                d.safety_A || 0,
+                                safetyAmt,
+                                d.target_A || 0,
+                                targetAmt
+                        ]);
+                });
+                
+                // 합계 행 추가
+                let totalStock = 0, totalStockAmt = 0, totalAvg = 0, totalAvgAmt = 0, totalSafety = 0, totalSafetyAmt = 0, totalTarget = 0, totalTargetAmt = 0;
+                f.forEach(d => {
+                        totalStock += (d.stock || 0);
+                        totalStockAmt += (d.stockAmt || 0);
+                        totalAvg += (d.avg || 0);
+                        totalAvgAmt += ((d.avg || 0) * d.price);
+                        totalSafety += (d.safety_A || 0);
+                        totalSafetyAmt += ((d.safety_A || 0) * d.price);
+                        totalTarget += (d.target_A || 0);
+                        totalTargetAmt += ((d.target_A || 0) * d.price);
+                });
+                wsData.push([
+                        "합계", "", "", "", "",
+                        "", "", totalStock, totalStockAmt,
+                        totalAvg, totalAvgAmt,
+                        totalSafety, totalSafetyAmt,
+                        totalTarget, totalTargetAmt
+                ]);
+                
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                
+                // 스타일 적용
+                for(let R = 0; R <= range.e.r; R++) {
+                        for(let C = 0; C <= range.e.c; C++) {
+                                const cellAddress = XLSX.utils.encode_cell({r:R, c:C});
+                                if(!ws[cellAddress]) ws[cellAddress] = {t:'s', v:''};
+                                // 헤더 행 스타일
+                                if(R === 0) {
+                                        ws[cellAddress].s = { font: { bold: true }, fill: { fgColor: { rgb: "000000" } }, fgColor: { rgb: "FFFFFF" } };
+                                }
+                                // 합계 행 스타일
+                                if(R === range.e.r) {
+                                        ws[cellAddress].s = { font: { bold: true }, fill: { fgColor: { rgb: "FFFF00" } } };
+                                }
+                        }
+                }
+                
+                // 컬럼 너비 설정
+                ws['!cols'] = [
+                        { wch: 10 }, // 상태
+                        { wch: 12 }, // 코드
+                        { wch: 30 }, // 품목명
+                        { wch: 30 }, // 규격
+                        { wch: 12 }, // 단가
+                        { wch: 15 }, // 작업장
+                        { wch: 10 }, // 구분
+                        { wch: 12 }, // 현재고
+                        { wch: 15 }, // 금액
+                        { wch: 12 }, // 평균
+                        { wch: 15 }, // 평균금액
+                        { wch: 12 }, // 안전
+                        { wch: 15 }, // 안전금액
+                        { wch: 12 }, // 적정
+                        { wch: 15 }  // 적정금액
+                ];
+                
+                let filterParts = [];
+                if(wpF !== "ALL") filterParts.push(wpF);
+                if(catF !== "ALL") filterParts.push(catF);
+                if(statF !== "ALL") filterParts.push(statF.replace(/[🚨⚠️]/g, "").trim());
+                if(searchCode) filterParts.push("검색");
+                const filterName = filterParts.length > 0 ? filterParts.join("_") : "전체";
+                XLSX.utils.book_append_sheet(wb, ws, "현재고");
+                const today = new Date().toISOString().substring(0, 10).replace(/-/g, '');
+                XLSX.writeFile(wb, `현재고_${filterName}_${today}.xlsx`);
+        } catch(e) {
+                console.error("긴급건 다운로드 오류:", e);
+                alert("다운로드 중 오류가 발생했습니다: " + e.message);
+        }
+}
+
 function downloadSchedulePlan(wb, f, planMonth) {
         try {
                 const [year, month] = planMonth.split('-');
@@ -1356,6 +1702,621 @@ async function handleBatchPlanUpload(event) {
                 }
         } catch(e) { console.error("일괄 업로드 오류:", e); alert("일괄 업로드 중 오류가 발생했습니다."); }
 }
+
+let currentSemiLogicMode = 'V20';
+let semiPlanMonth = new Date().toISOString().substring(0, 7);
+
+function syncSemiMonthDisplay() { 
+        const v = document.getElementById('semi_plan_month').value; 
+        if(document.getElementById('semi_month_display')) document.getElementById('semi_month_display').innerText = v || "선택안됨"; 
+        semiPlanMonth = v;
+        localStorage.setItem('jemini_semi_plan_month', v);
+}
+async function changeSemiMonth(diff) { 
+        try {
+                const el = document.getElementById('semi_plan_month'); 
+                if(!el) return;
+                let d = new Date((el.value || new Date().toISOString().substring(0, 7)) + "-01"); 
+                d.setMonth(d.getMonth() + diff); 
+                el.value = d.toISOString().substring(0, 7); 
+                syncSemiMonthDisplay(); 
+                if(semiProductData.length > 0) await calculateSemiProduct();
+        } catch(e) { console.error("반제품 월 변경 오류:", e); }
+}
+function switchSemiLogic(mode) { 
+        currentSemiLogicMode = mode; 
+        document.getElementById('btn_semi_logic_v20').classList.toggle('active', mode === 'V20'); 
+        document.getElementById('btn_semi_logic_v21').classList.toggle('active', mode === 'V21'); 
+        renderSemiMonthly(); 
+}
+
+async function handleSemiProductUpload(event) {
+        try {
+                const file = event.target.files[0];
+                if(!file) return;
+                const raw = await readExcel(file);
+                semiProductData = [];
+                const typeSet = new Set();
+                let currentType = "";
+                raw.forEach((row, idx) => {
+                        if(idx === 0) return;
+                        const type = String(row[0] || "").trim();
+                        if(type) {
+                                if(type !== currentType) {
+                                        currentType = type;
+                                }
+                                typeSet.add(type);
+                        }
+                        const erp = String(row[1] || "").trim();
+                        if(!erp || erp === "ERP") return;
+                        const spec = String(row[2] || "").trim();
+                        const price = Number(String(row[5] || "0").replace(/,/g, "")) || 0;
+                        const avg3mUsage = Number(String(row[6] || "0").replace(/,/g, "")) || 0;
+                        const baseStock = Number(String(row[7] || "0").replace(/,/g, "")) || 0;
+                        const totalInbound = Number(String(row[8] || "0").replace(/,/g, "")) || 0;
+                        const currentStock = Number(String(row[9] || "0").replace(/,/g, "")) || 0;
+                        if(!erp || !spec) return;
+                        const monthlyPlans = [];
+                        const monthlyPlanDates = [];
+                        for(let i = 11; i <= 16; i++) {
+                                const planVal = Number(String(row[i] || "0").replace(/,/g, "")) || 0;
+                                monthlyPlans.push(planVal);
+                                const monthOffset = i - 11;
+                                const year = 2025 + Math.floor((10 + monthOffset) / 12);
+                                const month = (10 + monthOffset) % 12;
+                                const planDate = new Date(year, month, 1);
+                                const monthStr = planDate.toISOString().substring(0, 7);
+                                monthlyPlanDates.push(monthStr);
+                                if(planVal > 0) {
+                                        console.log(`[반제품 엑셀 읽기] ${erp}: ${monthStr} = ${planVal} (셀 인덱스: ${i})`);
+                                }
+                        }
+                        const usage = baseStock + totalInbound - currentStock;
+                        const avgUsageFromHistory = usage > 0 ? usage / 12 : 0;
+                        const recent3Months = monthlyPlans.slice(-3).filter(v => v > 0);
+                        const avg3mPlan = recent3Months.length > 0 ? Math.round(recent3Months.reduce((a,b) => a+b, 0) / 3) : 0;
+                        let avgUsage = avgUsageFromHistory;
+                        if(avg3mUsage > 0) {
+                                if(avgUsageFromHistory > 0) {
+                                        avgUsage = Math.round((avgUsageFromHistory * 0.3) + (avg3mUsage * 0.7));
+                                } else {
+                                        avgUsage = avg3mUsage;
+                                }
+                        } else if(avg3mPlan > 0) {
+                                if(avgUsageFromHistory > 0) {
+                                        avgUsage = Math.round((avgUsageFromHistory * 0.4) + (avg3mPlan * 0.6));
+                                } else {
+                                        avgUsage = avg3mPlan;
+                                }
+                        } else {
+                                avgUsage = Math.round(avgUsageFromHistory);
+                        }
+                        const semiCR = parseFloat(document.getElementById('cfg_semi_china')?.value) || 2.5;
+                        const safety = avgUsage > 0 ? Math.round(avgUsage * semiCR) : 0;
+                        const target = avgUsage > 0 ? Math.round(avgUsage * semiCR * 1.3) : 0;
+                        const codeKey = String(erp).trim();
+                        const codeOriginal = String(erp);
+                        let unit = 10;
+                        if(semiUnitOverrides.has(codeKey)) unit = semiUnitOverrides.get(codeKey);
+                        else if(semiUnitOverrides.has(codeOriginal)) unit = semiUnitOverrides.get(codeOriginal);
+                        else if(semiUnitOverrides.has(String(erp).trim())) unit = semiUnitOverrides.get(String(erp).trim());
+                        semiProductData.push({
+                                type: currentType || "기타",
+                                code: erp,
+                                spec,
+                                price,
+                                stock: currentStock,
+                                baseStock,
+                                totalInbound,
+                                usage,
+                                avgUsage,
+                                avg3mUsage,
+                                monthlyPlans,
+                                monthlyPlanDates,
+                                avg3mPlan,
+                                safety,
+                                target,
+                                unit,
+                                pending: 0,
+                                plan_A: 0,
+                                plan_B: 0
+                        });
+                });
+                updateSemiTypeFilter();
+                await saveToDB("semi", semiProductData);
+                if(document.getElementById('status_semi')) document.getElementById('status_semi').style.display = 'inline';
+                await calculateSemiProduct();
+                alert(`반제품 데이터 로드 완료! (${semiProductData.length}건)`);
+        } catch(e) { console.error("반제품 업로드 오류:", e); alert("반제품 파일 업로드 중 오류가 발생했습니다."); }
+}
+
+async function getSemiTimelineGap(r, p) {
+        try {
+                const t = document.getElementById('gh_token')?.value; 
+                if(!t || !r || !p) return { pendingMap: {} }; 
+                const s = new Date(r + "-01"), e = new Date(p + "-01");
+                const pm = {};
+                let c = new Date(s); 
+                c.setMonth(c.getMonth() + 1);
+                const endDate = new Date(e.getFullYear(), e.getMonth(), 1);
+                const monthsToLoad = [];
+                while(c < endDate) { 
+                        monthsToLoad.push(c.toISOString().substring(0, 7));
+                        c.setMonth(c.getMonth()+1); 
+                }
+                const fetchPromises = monthsToLoad.map(async (m) => {
+                        try { 
+                                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${m}.json`, { headers: { Authorization: `token ${t}` } }); 
+                                if(res.ok) { 
+                                        const j = await res.json(); 
+                                        const planData = JSON.parse(decodeURIComponent(escape(atob(j.content)))); 
+                                        return { month: m, data: planData };
+                                }
+                                return null;
+                        } catch(ex){
+                                return null;
+                        }
+                });
+                const results = await Promise.all(fetchPromises);
+                results.forEach(result => {
+                        if(!result || !result.data) return;
+                        result.data.forEach(i => { 
+                                const codeOriginal = String(i.code || "");
+                                const code = codeOriginal.trim();
+                                if(code) {
+                                        const qty = Number(i.planQty || 0) || 0;
+                                        if(qty > 0) {
+                                                pm[code] = (pm[code]||0) + qty;
+                                                if(codeOriginal !== code) {
+                                                        pm[codeOriginal] = (pm[codeOriginal]||0) + qty;
+                                                }
+                                                const codeNoSpace = code.replace(/\s+/g, '');
+                                                if(codeNoSpace !== code) {
+                                                        pm[codeNoSpace] = (pm[codeNoSpace]||0) + qty;
+                                                }
+                                                const codeNum = String(Number(code)) || code;
+                                                if(codeNum !== code && codeNum !== codeOriginal && codeNum !== codeNoSpace) {
+                                                        pm[codeNum] = (pm[codeNum]||0) + qty;
+                                                }
+                                        }
+                                }
+                        });
+                });
+                return { pendingMap: pm }; 
+        } catch(e) { 
+                if(e.message && !e.message.includes('CORS') && !e.message.includes('Failed to fetch')) {
+                        console.error("반제품 타임라인 계산 오류:", e); 
+                }
+                return { pendingMap: {} }; 
+        }
+}
+
+async function calculateSemiProduct() {
+        try {
+                const semiCR = parseFloat(document.getElementById('cfg_semi_china')?.value) || 2.5;
+                const minLimit = parseFloat(document.getElementById('cfg_min_limit')?.value) || 1;
+                const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+                const planMonth = document.getElementById('semi_plan_month')?.value || new Date().toISOString().substring(0, 7);
+                if(!refMonth || !planMonth) {
+                        console.error("기준월 또는 계획월이 설정되지 않았습니다.");
+                        return;
+                }
+                const refDate = new Date(refMonth + "-01");
+                const planDate = new Date(planMonth + "-01");
+                if(isNaN(refDate.getTime()) || isNaN(planDate.getTime())) {
+                        console.error("날짜 파싱 오류:", refMonth, planMonth);
+                        return;
+                }
+                const refYear = refDate.getFullYear();
+                const refMonthIdx = refDate.getMonth();
+                const planYear = planDate.getFullYear();
+                const planMonthIdx = planDate.getMonth();
+                let startYear = refYear;
+                let startMonth = refMonthIdx - 1;
+                if(startMonth < 0) {
+                        startYear = refYear - 1;
+                        startMonth = 11;
+                }
+                const startMonthStr = `${startYear}-${String(startMonth + 1).padStart(2, '0')}`;
+                const endMonthStr = `${planYear}-${String(planMonthIdx + 1).padStart(2, '0')}`;
+                semiProductData.forEach(d => {
+                        const codeKey = String(d.code || "").trim();
+                        const codeOriginal = String(d.code || "");
+                        if(semiUnitOverrides.has(codeKey)) d.unit = semiUnitOverrides.get(codeKey);
+                        else if(semiUnitOverrides.has(codeOriginal)) d.unit = semiUnitOverrides.get(codeOriginal);
+                        else if(semiUnitOverrides.has(String(d.code || "").trim())) d.unit = semiUnitOverrides.get(String(d.code || "").trim());
+                        else if(!d.unit) d.unit = 10;
+                        let pend = 0;
+                        if(d.monthlyPlans && d.monthlyPlanDates && Array.isArray(d.monthlyPlans) && Array.isArray(d.monthlyPlanDates) && d.monthlyPlans.length > 0 && d.monthlyPlanDates.length > 0) {
+                                const minLen = Math.min(d.monthlyPlans.length, d.monthlyPlanDates.length);
+                                for(let idx = 0; idx < minLen; idx++) {
+                                        const planQty = Number(d.monthlyPlans[idx]) || 0;
+                                        const planMonthStr = String(d.monthlyPlanDates[idx] || "").trim();
+                                        if(planMonthStr && planMonthStr.length === 7 && planQty > 0) {
+                                                if(planMonthStr >= startMonthStr && planMonthStr < endMonthStr) {
+                                                        pend += planQty;
+                                                }
+                                        }
+                                }
+                                if(pend === 0 && d.monthlyPlans.some(p => p > 0)) {
+                                        const totalPlan = d.monthlyPlans.reduce((a, b) => a + b, 0);
+                                        if(totalPlan > 100) {
+                                                console.warn(`[반제품 기입고 경고] ${d.code}: 계산된 기입고가 0입니다. (총 계획량: ${totalPlan})`, {
+                                                        monthlyPlans: d.monthlyPlans,
+                                                        monthlyPlanDates: d.monthlyPlanDates,
+                                                        startMonthStr,
+                                                        endMonthStr
+                                                });
+                                        }
+                                }
+                        }
+                        d.pending = pend;
+                        let effectiveAvgUsage = d.avgUsage || 0;
+                        if(semiAvgUsageOverrides.has(codeKey)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeKey);
+                        else if(semiAvgUsageOverrides.has(codeOriginal)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeOriginal);
+                        else if(semiAvgUsageOverrides.has(String(d.code || "").trim())) effectiveAvgUsage = semiAvgUsageOverrides.get(String(d.code || "").trim());
+                        d.safety = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR) : 0;
+                        d.target = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * semiCR * 1.3) : 0;
+                        const monthsDiff = (planDate.getFullYear() - refDate.getFullYear()) * 12 + (planDate.getMonth() - refDate.getMonth());
+                        const burn = effectiveAvgUsage > 0 ? Math.round(effectiveAvgUsage * monthsDiff) : 0;
+                        d.burn = burn;
+                        const raw_A = (d.target + burn) - (d.stock + d.pending);
+                        const raw_B = (d.target + burn) - (d.stock + d.pending);
+                        d.plan_A = raw_A < d.unit ? 0 : Math.floor(raw_A / d.unit) * d.unit;
+                        d.plan_B = raw_B < d.unit ? 0 : Math.floor(raw_B / d.unit) * d.unit;
+                        if(d.plan_A < 0) d.plan_A = 0;
+                        if(d.plan_B < 0) d.plan_B = 0;
+                });
+                renderSemiMonthly();
+                calculateSemiAnnual();
+        } catch(e) { console.error("반제품 계산 오류:", e); }
+}
+
+function updateSemiTypeFilter() {
+        try {
+                const typeSet = new Set();
+                semiProductData.forEach(d => {
+                        if(d.type && d.type.trim()) {
+                                typeSet.add(d.type.trim());
+                        }
+                });
+                const typeSelect = document.getElementById('semi_sel_type');
+                const semiATypeSelect = document.getElementById('semi_a_sel_type');
+                if(typeSelect) {
+                        typeSelect.innerHTML = '<option value="ALL">전체 기종</option>' + Array.from(typeSet).sort().map(t => `<option value="${t}">${t}</option>`).join('');
+                }
+                if(semiATypeSelect) {
+                        semiATypeSelect.innerHTML = '<option value="ALL">전체 기종</option>' + Array.from(typeSet).sort().map(t => `<option value="${t}">${t}</option>`).join('');
+                }
+        } catch(e) { console.error("기종 필터 업데이트 오류:", e); }
+}
+
+async function updateSemiSafetyTarget() {
+        try {
+                if(semiProductData.length === 0) return;
+                const semiCR = parseFloat(document.getElementById('cfg_semi_china')?.value) || 2.5;
+                semiProductData.forEach(d => {
+                        d.safety = d.avgUsage > 0 ? Math.round(d.avgUsage * semiCR) : 0;
+                        d.target = d.avgUsage > 0 ? Math.round(d.avgUsage * semiCR * 1.3) : 0;
+                        const raw_A = d.target - (d.stock + d.pending);
+                        const raw_B = d.target - (d.stock + d.pending);
+                        d.plan_A = raw_A < d.unit ? 0 : Math.floor(raw_A / d.unit) * d.unit;
+                        d.plan_B = raw_B < d.unit ? 0 : Math.floor(raw_B / d.unit) * d.unit;
+                        if(d.plan_A < 0) d.plan_A = 0;
+                        if(d.plan_B < 0) d.plan_B = 0;
+                });
+                renderSemiMonthly();
+                calculateSemiAnnual();
+        } catch(e) { console.error("반제품 안전/적정재고 업데이트 오류:", e); }
+}
+
+function renderSemiMonthly() {
+        try {
+                const body = document.getElementById('semi_monthly_body');
+                if(!body) return;
+                body.innerHTML = "";
+                const typeF = document.getElementById('semi_sel_type')?.value || "ALL";
+                const searchCodeEl = document.getElementById('semi_search_code');
+                const searchCode = searchCodeEl ? (searchCodeEl.value || "").trim() : "";
+                const f = semiProductData.filter(d => {
+                        if(typeF !== "ALL" && d.type !== typeF) return false;
+                        if(searchCode && searchCode.length > 0) {
+                                const codeStr = String(d.code || "");
+                                const specStr = String(d.spec || "");
+                                if(!codeStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
+                        }
+                        return true;
+                });
+                let tQ = 0, tA = 0, tStockA = 0;
+                f.slice(0, displayLimits.semiMonthly).forEach(d => {
+                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        tQ += p;
+                        tA += (p * d.price);
+                        tStockA += (d.stock * d.price);
+                        const tr = document.createElement('tr');
+                        const codeKey = String(d.code || "").trim();
+                        const codeOriginal = String(d.code || "");
+                        let displayAvgUsage = d.avgUsage || 0;
+                        if(semiAvgUsageOverrides.has(codeKey)) displayAvgUsage = semiAvgUsageOverrides.get(codeKey);
+                        else if(semiAvgUsageOverrides.has(codeOriginal)) displayAvgUsage = semiAvgUsageOverrides.get(codeOriginal);
+                        else if(semiAvgUsageOverrides.has(String(d.code || "").trim())) displayAvgUsage = semiAvgUsageOverrides.get(String(d.code || "").trim());
+                        tr.innerHTML = `<td>${d.code}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="text-info bg-light"><input type="number" class="form-control form-control-sm" style="width:80px; text-align:center;" value="${displayAvgUsage}" onchange="updateSemiAvgUsage('${d.code}', this.value)"></td><td class="bg-info text-white">${(d.avg3mUsage || 0).toLocaleString()}</td><td class="bg-warning text-dark">${d.avg3mPlan.toLocaleString()}</td><td>${d.safety.toLocaleString()}</td><td>${d.target.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateSemiUnit('${d.code}', this.value)"></td><td class="text-danger fw-bold">${(d.burn || 0).toLocaleString()}</td><td class="text-primary fw-bold">${d.pending.toLocaleString()}</td><td class="plan-input"><input type="number" class="form-control form-control-sm plan-input" value="${p}" onchange="updateSemiPlanQty('${d.code}', this.value)"></td><td class="text-success fw-bold">${(p * d.price).toLocaleString()}</td>`;
+                        body.appendChild(tr);
+                });
+                if(document.getElementById('semi_sum_qty_box')) document.getElementById('semi_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`;
+                if(document.getElementById('semi_sum_amt_box')) document.getElementById('semi_sum_amt_box').innerText = `금액: ${tA.toLocaleString()} 원`;
+                if(document.getElementById('semi_sum_stock_amt_box')) document.getElementById('semi_sum_stock_amt_box').innerText = `현재고: ${tStockA.toLocaleString()} 원`;
+        } catch(e) { console.error("반제품 계획수립 렌더링 오류:", e); }
+}
+
+function updateSemiPlanQty(code, value) {
+        const it = semiProductData.find(d => d.code === code);
+        if(it) {
+                if(currentSemiLogicMode === 'V20') it.plan_A = Number(value);
+                else it.plan_B = Number(value);
+                renderSemiMonthly();
+        }
+}
+
+async function updateSemiUnit(code, value) {
+        try {
+                const it = semiProductData.find(d => d.code === code);
+                if(it) {
+                        const unit = Number(value) || 10;
+                        it.unit = unit;
+                        const codeKey = String(code).trim();
+                        const codeOriginal = String(code);
+                        semiUnitOverrides.set(codeKey, unit);
+                        semiUnitOverrides.set(codeOriginal, unit);
+                        semiUnitOverrides.set(String(code).trim(), unit);
+                        localStorage.setItem('jemini_semi_unit_overrides', JSON.stringify([...semiUnitOverrides]));
+                        await calculateSemiProduct();
+                }
+        } catch(e) { console.error("반제품 포장단위 업데이트 오류:", e); }
+}
+
+async function updateSemiAvgUsage(code, value) {
+        try {
+                const it = semiProductData.find(d => d.code === code);
+                if(it) {
+                        const avgUsage = Number(value) || 0;
+                        const codeKey = String(code).trim();
+                        const codeOriginal = String(code);
+                        if(avgUsage > 0) {
+                                semiAvgUsageOverrides.set(codeKey, avgUsage);
+                                semiAvgUsageOverrides.set(codeOriginal, avgUsage);
+                                semiAvgUsageOverrides.set(String(code).trim(), avgUsage);
+                        } else {
+                                semiAvgUsageOverrides.delete(codeKey);
+                                semiAvgUsageOverrides.delete(codeOriginal);
+                                semiAvgUsageOverrides.delete(String(code).trim());
+                        }
+                        localStorage.setItem('jemini_semi_avg_usage_overrides', JSON.stringify([...semiAvgUsageOverrides]));
+                        await calculateSemiProduct();
+                }
+        } catch(e) { console.error("반제품 평균 사용량 업데이트 오류:", e); }
+}
+
+async function saveSemiUnitOverridesToGithub() {
+        try {
+                const t = document.getElementById('gh_token')?.value;
+                if(!t) return alert("GitHub Token을 먼저 입력하세요.");
+                const data = Object.fromEntries(semiUnitOverrides);
+                if(Object.keys(data).length === 0) return alert("저장할 반제품 포장단위 설정이 없습니다.");
+                const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+                const path = `data/semi_unit_overrides.json`;
+                let sha = "";
+                try {
+                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } });
+                        if(res.ok) sha = (await res.json()).sha;
+                } catch(e) {}
+                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, {
+                        method: "PUT",
+                        headers: { Authorization: `token ${t}` },
+                        body: JSON.stringify({ message: "반제품 포장단위 설정 저장", content, sha })
+                });
+                alert("반제품 포장단위 설정 저장 완료!");
+        } catch(e) { console.error("반제품 포장단위 저장 오류:", e); alert("저장 중 오류가 발생했습니다."); }
+}
+
+async function loadSemiUnitOverridesFromGithub() {
+        try {
+                const t = document.getElementById('gh_token')?.value;
+                if(!t) return;
+                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_unit_overrides.json`, { headers: { Authorization: `token ${t}` } });
+                if(res.ok) {
+                        const data = await res.json();
+                        const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                        semiUnitOverrides = new Map(Object.entries(loaded));
+                        localStorage.setItem('jemini_semi_unit_overrides', JSON.stringify([...semiUnitOverrides]));
+                }
+        } catch(e) {}
+}
+
+async function loadSemiAvgUsageOverridesFromGithub() {
+        try {
+                const t = document.getElementById('gh_token')?.value;
+                if(!t) return;
+                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_avg_usage_overrides.json`, { headers: { Authorization: `token ${t}` } });
+                if(res.ok) {
+                        const data = await res.json();
+                        const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                        semiAvgUsageOverrides = new Map(Object.entries(loaded));
+                        localStorage.setItem('jemini_semi_avg_usage_overrides', JSON.stringify([...semiAvgUsageOverrides]));
+                        await calculateSemiProduct();
+                }
+        } catch(e) {}
+}
+
+function calculateSemiAnnual() {
+        try {
+                semiAnnualData = [];
+                semiProductData.forEach(p => {
+                        const codeKey = String(p.code || "").trim();
+                        const codeOriginal = String(p.code || "");
+                        let effectiveAvgUsage = p.avgUsage || 0;
+                        if(semiAvgUsageOverrides.has(codeKey)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeKey);
+                        else if(semiAvgUsageOverrides.has(codeOriginal)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeOriginal);
+                        else if(semiAvgUsageOverrides.has(String(p.code || "").trim())) effectiveAvgUsage = semiAvgUsageOverrides.get(String(p.code || "").trim());
+                        if(!effectiveAvgUsage || effectiveAvgUsage < 1) return;
+                        let curS = p.stock, mP = [], yS = 0;
+                        const target = p.target;
+                        for(let i = 1; i <= 12; i++) {
+                                let n = Math.max(0, target - (curS - effectiveAvgUsage));
+                                const plan = (n < p.unit) ? 0 : Math.floor(n / p.unit) * p.unit;
+                                mP.push(plan);
+                                yS += plan;
+                                curS = (curS - effectiveAvgUsage) + plan;
+                        }
+                        semiAnnualData.push({ ...p, plans: mP, annualSum: yS });
+                });
+                renderSemiAnnual();
+        } catch(e) { console.error("반제품 연간 예측 계산 오류:", e); }
+}
+
+function renderSemiAnnual() {
+        try {
+                const head = document.getElementById('semi_annual_head');
+                const body = document.getElementById('semi_annual_body');
+                if(!head || !body) return;
+                const typeF = document.getElementById('semi_a_sel_type')?.value || "ALL";
+                const f = semiAnnualData.filter(p => {
+                        if(!p) return false;
+                        if(typeF !== "ALL" && p.type !== typeF) return false;
+                        return true;
+                });
+                head.innerHTML = `<tr><th class="sticky-col">코드</th><th>규격</th><th>최근 3개월(계획)</th><th>1월</th><th>2월</th><th>3월</th><th>4월</th><th>5월</th><th>6월</th><th>7월</th><th>8월</th><th>9월</th><th>10월</th><th>11월</th><th>12월</th><th>합계</th></tr>`;
+                body.innerHTML = "";
+                let tQ = 0, tA = 0;
+                f.slice(0, displayLimits.semiAnnual).forEach(p => {
+                        tQ += p.annualSum;
+                        tA += (p.annualSum * p.price);
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td class="sticky-col">${p.code}</td><td>${p.spec}</td><td class="bg-warning text-dark">${p.avg3mPlan.toLocaleString()}</td>${p.plans.map(pl => `<td>${pl.toLocaleString()}</td>`).join('')}<td class="fw-bold">${p.annualSum.toLocaleString()}</td>`;
+                        body.appendChild(tr);
+                });
+                if(document.getElementById('semi_a_sum_qty')) document.getElementById('semi_a_sum_qty').innerText = tQ.toLocaleString();
+                if(document.getElementById('semi_a_sum_amt')) document.getElementById('semi_a_sum_amt').innerText = tA.toLocaleString();
+        } catch(e) { console.error("반제품 연간 예측 렌더링 오류:", e); }
+}
+
+async function saveSemiToGithub() {
+        try {
+                const t = document.getElementById('gh_token')?.value, m = document.getElementById('semi_plan_month')?.value;
+                if(!t || !m) return alert("GitHub 정보 확인!");
+                const target = semiProductData.filter(d => {
+                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        return p > 0;
+                }).map(d => ({ code: d.code, planQty: (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B) }));
+                if(target.length === 0) return alert("저장할 데이터가 없습니다.");
+                const content = btoa(unescape(encodeURIComponent(JSON.stringify(target))));
+                const path = `data/semi_plan_${m}.json`; let sha = "";
+                try { const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } }); if(res.ok) sha = (await res.json()).sha; } catch(e) {}
+                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 반제품 계획 저장`, content, sha }) });
+                alert(`반제품 계획 저장 완료!`);
+        } catch(e) { console.error("반제품 저장 오류:", e); alert("저장 중 오류가 발생했습니다."); }
+}
+
+async function loadSemiFromGithub() {
+        try {
+                const t = document.getElementById('gh_token')?.value, m = document.getElementById('semi_plan_month')?.value;
+                if(!t || !m) return alert("GitHub 정보 확인!");
+                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${m}.json`, { headers: { Authorization: `token ${t}` } });
+                const data = await res.json();
+                const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                loaded.forEach(ld => { const target = semiProductData.find(pd => pd.code === ld.code); if(target) { if(currentSemiLogicMode === 'V20') target.plan_A = ld.planQty; else target.plan_B = ld.planQty; } });
+                await calculateSemiProduct();
+                alert("반제품 기존 계획 로드 완료!");
+        } catch(e) { console.error("반제품 로드 함수 오류:", e); alert("저장된 데이터가 없습니다."); }
+}
+
+function downloadSemiMonthly() {
+        try {
+                const typeF = document.getElementById('semi_sel_type')?.value || "ALL";
+                const searchCodeEl = document.getElementById('semi_search_code');
+                const searchCode = searchCodeEl ? (searchCodeEl.value || "").trim() : "";
+                const f = semiProductData.filter(d => {
+                        if(typeF !== "ALL" && d.type !== typeF) return false;
+                        if(searchCode && searchCode.length > 0) {
+                                const codeStr = String(d.code || "");
+                                const specStr = String(d.spec || "");
+                                if(!codeStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
+                        }
+                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        return p > 0;
+                });
+                if(f.length === 0) return alert("다운로드할 데이터가 없습니다.");
+                const planMonth = document.getElementById('semi_plan_month')?.value || new Date().toISOString().substring(0, 7);
+                const [year, month] = planMonth.split('-');
+                const monthNum = parseInt(month);
+                const wb = XLSX.utils.book_new();
+                const wsData = [];
+                wsData.push([`${year}년 ${monthNum}월 반제품 생산 계획서`, "", "", "", "", "", "", "", "", "", ""]);
+                wsData.push([]);
+                let totalAmt = 0;
+                const typeGroups = {};
+                f.forEach(d => {
+                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        const amt = p * d.price;
+                        totalAmt += amt;
+                        if(!typeGroups[d.type]) typeGroups[d.type] = [];
+                        typeGroups[d.type].push({
+                                code: d.code,
+                                spec: d.spec,
+                                unit: d.unit,
+                                avg3mPlan: d.avg3mPlan,
+                                stock: d.stock,
+                                plan: p,
+                                amt: amt,
+                                price: d.price
+                        });
+                });
+                wsData.push(["합계", "", "", "", "", "", "", "", totalAmt.toLocaleString(), "원", ""]);
+                wsData.push([]);
+                const typeKeys = Object.keys(typeGroups).sort();
+                typeKeys.forEach(typeKey => {
+                        wsData.push([typeKey, "", "", "", "", "", "", "", "", "", ""]);
+                        wsData.push(["품목코드", "규격", "단위", "3개월 평균 계획량", "당월 재고량", "생산의뢰수량", "의뢰금액", "단가", "", "", ""]);
+                        let typeSubtotal = 0;
+                        typeGroups[typeKey].forEach(item => {
+                                wsData.push([item.code, item.spec, item.unit, item.avg3mPlan, item.stock, item.plan, item.amt, item.price, "", "", ""]);
+                                typeSubtotal += item.amt;
+                        });
+                        wsData.push(["소계", "", "", "", "", "", typeSubtotal.toLocaleString(), "원", "", "", ""]);
+                        wsData.push([]);
+                });
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!merges'] = [
+                        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+                        { s: { r: 2, c: 0 }, e: { r: 2, c: 7 } },
+                        { s: { r: 2, c: 8 }, e: { r: 2, c: 9 } }
+                ];
+                for(let R = 0; R < wsData.length; R++) {
+                        for(let C = 0; C < wsData[R].length; C++) {
+                                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                                if(!ws[cellAddress]) continue;
+                                if(R === 0) {
+                                        if(!ws[cellAddress].s) ws[cellAddress].s = {};
+                                        ws[cellAddress].s.font = { bold: true, sz: 18 };
+                                        ws[cellAddress].s.alignment = { horizontal: 'center', vertical: 'center' };
+                                }
+                                if(R === 2 && C === 0) {
+                                        if(!ws[cellAddress].s) ws[cellAddress].s = {};
+                                        ws[cellAddress].s.font = { bold: true, underline: true };
+                                }
+                                const cellVal = wsData[R][C];
+                                if(typeKeys.includes(cellVal) || (R > 3 && C === 0 && cellVal && cellVal !== "품목코드" && cellVal !== "소계" && cellVal !== "합계")) {
+                                        if(!ws[cellAddress].s) ws[cellAddress].s = {};
+                                        ws[cellAddress].s.font = { bold: true };
+                                }
+                        }
+                }
+                XLSX.utils.book_append_sheet(wb, ws, "반제품생산계획");
+                XLSX.writeFile(wb, `반제품생산계획_${planMonth}.xlsx`);
+                alert("다운로드 완료!");
+        } catch(e) { console.error("반제품 다운로드 오류:", e); alert("다운로드 중 오류가 발생했습니다."); }
+}
 </script>
 </body>
+</html>
 </html>
