@@ -79,6 +79,7 @@
                 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#semi-annual-pane" type="button" role="tab" onclick="resetLimits(); renderSemiAnnual();">📊 연간 예측(반제품)</button></li>
                 <li class="nav-item"><button class="nav-link text-danger" data-bs-toggle="tab" data-bs-target="#dashboard-pane" type="button" role="tab" onclick="updateDashboardCharts()">🧠 AI 인사이트</button></li>
                 <li class="nav-item"><button class="nav-link text-success fw-bold" data-bs-toggle="tab" data-bs-target="#simulation-pane" type="button" role="tab">🧪 알고리즘 검증</button></li>
+                <li class="nav-item"><button class="nav-link text-primary fw-bold" data-bs-toggle="tab" data-bs-target="#comparison-pane" type="button" role="tab" onclick="renderComparison()">📊 실적 비교</button></li>
         </ul>
 
         <div class="tab-content">
@@ -191,7 +192,7 @@
                                 <div class="col-md-3"><div class="month-selector"><button class="btn-month" onclick="changeSemiMonth(-1)">◀</button><div id="semi_month_display" class="month-display">선택안됨</div><button class="btn-month" onclick="changeSemiMonth(1)">▶</button><input type="month" id="semi_plan_month" style="display:none;" onchange="syncSemiMonthDisplay()"></div></div>
                                 <div class="col-md-3"><div class="logic-switcher"><button class="logic-btn active" id="btn_semi_logic_v20" onclick="switchSemiLogic('V20')">기존 로직</button><button class="logic-btn" id="btn_semi_logic_v21" onclick="switchSemiLogic('V21')">고도화 로직(AI)</button></div></div>
                                 <div class="col-md-4 d-flex gap-2"><div class="summary-box text-info" id="semi_sum_stock_amt_box">현재고: 0 원</div><div class="summary-box text-primary" id="semi_sum_qty_box">수량: 0 EA</div><div class="summary-box text-success" id="semi_sum_amt_box">금액: 0 원</div></div>
-                                <div class="col-md-2"><button class="btn btn-success fw-bold btn-sm w-100" onclick="downloadSemiMonthly()">📥 다운로드</button></div>
+                                <div class="col-md-2 d-flex gap-2"><button class="btn btn-dark btn-sm w-100" onclick="saveSemiToGithub()">💾 저장</button><button class="btn btn-outline-dark btn-sm w-100" onclick="loadSemiFromGithub()">📂 로드</button><button class="btn btn-success fw-bold btn-sm w-100" onclick="downloadSemiMonthly()">📥 다운로드</button></div>
                         </div>
                         <div class="row mb-2 px-3 align-items-center">
                                 <div class="col-md-2"><select id="semi_sel_type" class="form-select form-select-sm" onchange="renderSemiMonthly()"><option value="ALL">전체 기종</option></select></div>
@@ -231,6 +232,91 @@
                                 <div class="col-md-12"><div class="chart-container"><h6 class="fw-bold">작업장별 생산 로드 (금액 기준)</h6><canvas id="loadChart"></canvas></div></div>
                         </div>
                 </div>
+
+                <div class="tab-pane fade" id="comparison-pane" role="tabpanel">
+                        <div class="header-card border-primary">
+                                <h6 class="fw-bold text-primary mb-3">📊 매출 vs 계획량 비교</h6>
+                                <div class="alert alert-info mb-3">
+                                        <strong>사용 방법:</strong> 기존에 업로드한 "1. 누적 판매" 데이터에서 전월 매출을 자동으로 추출하여, 해당 월의 계획량과 비교합니다.<br>
+                                        <small>예: 현재 시점이 1월이면, 2024년 12월의 계획량과 실제 매출을 자동으로 비교합니다.</small>
+                                </div>
+                                <div class="row g-3 align-items-end mb-3">
+                                        <div class="col-md-4">
+                                                <label class="fw-bold small">비교 기준월</label>
+                                                <input type="month" id="comparison_month" class="form-control form-control-sm" onchange="renderComparison()">
+                                                <small class="text-muted">기본값: 현재 시점의 전월</small>
+                                        </div>
+                                        <div class="col-md-3">
+                                                <label class="fw-bold small">작업장</label>
+                                                <select id="comp_sel_wp" class="form-select form-select-sm" onchange="renderComparison()">
+                                                        <option value="ALL">전체</option>
+                                                </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                                <label class="fw-bold small">비고</label>
+                                                <select id="comp_sel_note" class="form-select form-select-sm" onchange="renderComparison()">
+                                                        <option value="ALL">전체</option>
+                                                        <option value="재고 충분">✅ 재고 충분</option>
+                                                        <option value="예측 범위 내">✅ 예측 범위 내</option>
+                                                        <option value="계획 정확">✅ 계획 정확</option>
+                                                        <option value="계획 차이">⚠️ 계획 차이</option>
+                                                        <option value="계획 부족">⚠️ 계획 부족</option>
+                                                        <option value="계획 오차">❌ 계획 오차</option>
+                                                </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                                <button class="btn btn-primary fw-bold w-100" onclick="renderComparison()">🔄 비교 실행</button>
+                                        </div>
+                                </div>
+                                <div class="row g-2 mb-3">
+                                        <div class="col-md-3">
+                                                <div class="summary-box text-info">
+                                                        비교 대상월: <span id="comp_target_month">-</span>
+                                                </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                                <div class="summary-box text-success">
+                                                        계획 대비 정확도: <span id="comp_overall_accuracy">-</span>%
+                                                </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                                <div class="summary-box text-primary">
+                                                        매출 증감률: <span id="comp_variance">-</span>%
+                                                </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                                <div class="summary-box text-warning">
+                                                        비교 품목 수: <span id="comp_item_count">0</span>개
+                                                </div>
+                                        </div>
+                                </div>
+                        </div>
+                        <div class="table-container">
+                                <table class="table align-middle mb-0">
+                                        <thead>
+                                                <tr>
+                                                        <th onclick="sortTable('comparison', 0)">코드</th>
+                                                        <th onclick="sortTable('comparison', 1)">품목명</th>
+                                                        <th onclick="sortTable('comparison', 2)">규격</th>
+                                                        <th onclick="sortTable('comparison', 3)">단가</th>
+                                                        <th onclick="sortTable('comparison', 4)">판매 예측</th>
+                                                        <th onclick="sortTable('comparison', 5)">현재고</th>
+                                                        <th onclick="sortTable('comparison', 6)">계획량</th>
+                                                        <th onclick="sortTable('comparison', 7)">실제 매출</th>
+                                                        <th onclick="sortTable('comparison', 8)">차이 (매출-계획)</th>
+                                                        <th onclick="sortTable('comparison', 9)">증감률</th>
+                                                        <th onclick="sortTable('comparison', 10)">정확도</th>
+                                                        <th onclick="sortTable('comparison', 11)">계획금액</th>
+                                                        <th onclick="sortTable('comparison', 12)">실제금액</th>
+                                                        <th onclick="sortTable('comparison', 13)">금액차이</th>
+                                                        <th onclick="sortTable('comparison', 14)">비고</th>
+                                                </tr>
+                                        </thead>
+                                        <tbody id="comparison_body"></tbody>
+                                </table>
+                                <div class="load-more-container"><button class="btn btn-outline-dark btn-load-more" onclick="loadMore('comparison')">+ 데이터 50개 더 불러오기</button></div>
+                        </div>
+                </div>
         </div>
 </div>
 
@@ -239,8 +325,9 @@
 let rawData = { master: new Map(), salesByYear: {}, stock: {}, fullStockItems: [] };
 let processedData = []; let annualData = []; let simResults = []; let shortageDetails = [];
 let semiProductData = []; let semiAnnualData = [];
-let displayLimits = { stock: 50, monthly: 50, sim: 50, annual: 50, semiMonthly: 50, semiAnnual: 50 }; 
-let sortState = { stock: { idx: -1, asc: true }, monthly: { idx: -1, asc: true }, sim: { idx: -1, asc: true }, annual: { idx: -1, asc: true }, semiMonthly: { idx: -1, asc: true }, semiAnnual: { idx: -1, asc: true } };
+let displayLimits = { stock: 50, monthly: 50, sim: 50, annual: 50, semiMonthly: 50, semiAnnual: 50, comparison: 50 }; 
+let sortState = { stock: { idx: -1, asc: true }, monthly: { idx: -1, asc: true }, sim: { idx: -1, asc: true }, annual: { idx: -1, asc: true }, semiMonthly: { idx: -1, asc: true }, semiAnnual: { idx: -1, asc: true }, comparison: { idx: -1, asc: true } };
+let comparisonData = []; // 비교 결과 데이터
 let charts = {};
 let currentLogicMode = 'V20';
 let savedFilters = { wp: {}, cat: {}, status: {} };
@@ -288,7 +375,15 @@ const DB_NAME = "PPS_DB_V41"; const STORE_NAME = "CachedFiles";
 const openDB = () => new Promise((res, rej) => { const req = indexedDB.open(DB_NAME, 1); req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME); req.onsuccess = e => res(e.target.result); req.onerror = e => rej(e); });
 async function saveToDB(k, v) { const db = await openDB(); const tx = db.transaction(STORE_NAME, "readwrite"); tx.objectStore(STORE_NAME).put(v, k); }
 async function loadFromDB(k) { try { const db = await openDB(); return new Promise(res => { const r = db.transaction(STORE_NAME).objectStore(STORE_NAME).get(k); r.onsuccess = () => res(r.result); r.onerror = () => res(null); }); } catch(e) { return null; } }
-async function clearLocalDB() { if(confirm("캐시를 삭제할까요?")) { const db = await openDB(); db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear(); location.reload(); } }
+async function clearLocalDB() { 
+        if(confirm("캐시를 삭제할까요?")) { 
+                const db = await openDB(); 
+                db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear(); 
+                // 계획 데이터 캐시도 초기화
+                planDataCache = {};
+                location.reload(); 
+        } 
+}
 
 function saveGitHubToken() {
         try {
@@ -345,6 +440,14 @@ window.addEventListener('DOMContentLoaded', async () => {
                         document.getElementById('semi_plan_month').value = savedSemiMonth;
                         syncSemiMonthDisplay();
                 }
+                // 비교 기준월 초기화: 현재 월의 전월로 설정
+                const comparisonMonthEl = document.getElementById('comparison_month');
+                if(comparisonMonthEl && !comparisonMonthEl.value) {
+                        const now = new Date();
+                        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                        const defaultComparisonMonth = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+                        comparisonMonthEl.value = defaultComparisonMonth;
+                }
                 const savedFiltersData = localStorage.getItem('jemini_filters');
                 if(savedFiltersData) {
                         try { savedFilters = JSON.parse(savedFiltersData); } catch(e) {}
@@ -384,7 +487,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function readExcel(file) { const buffer = await file.arrayBuffer(); const wb = XLSX.read(buffer, {type: 'array', cellDates: true}); return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, defval: ""}); }
-function syncMonthDisplay() { const v = document.getElementById('plan_month').value; if(document.getElementById('month_display')) document.getElementById('month_display').innerText = v || "선택안됨"; localStorage.setItem('jemini_plan_month', v); }
+function syncMonthDisplay() { const v = document.getElementById('plan_month').value; if(document.getElementById('month_display')) document.getElementById('month_display').innerText = v || "선택안됨"; localStorage.setItem('jemini_plan_month', v); renderMonthly(); }
 function changeMonth(diff) { 
         try {
                 const el = document.getElementById('plan_month'); 
@@ -410,7 +513,7 @@ function saveConfig() {
 }
 function switchLogic(mode) { currentLogicMode = mode; document.getElementById('btn_logic_v20').classList.toggle('active', mode === 'V20'); document.getElementById('btn_logic_v21').classList.toggle('active', mode === 'V21'); renderMonthly(); }
 function resetLimits() { displayLimits = { stock: 50, monthly: 50, sim: 50, annual: 50, semiMonthly: 50, semiAnnual: 50 }; }
-function loadMore(type) { displayLimits[type] += 50; if(type==='stock') renderStock(); else if(type==='monthly') renderMonthly(); else if(type==='annual') renderAnnual(); else if(type==='semiMonthly') renderSemiMonthly(); else if(type==='semiAnnual') renderSemiAnnual(); else if(type==='sim') { if(simResults.length > 0) { const empty = Array(12).fill(0); renderSimResults_Table(empty, empty, empty, empty, empty, empty, empty, 0); } } }
+function loadMore(type) { displayLimits[type] += 50; if(type==='stock') renderStock(); else if(type==='monthly') renderMonthly(); else if(type==='annual') renderAnnual(); else if(type==='semiMonthly') renderSemiMonthly(); else if(type==='semiAnnual') renderSemiAnnual(); else if(type==='comparison') renderComparison(); else if(type==='sim') { if(simResults.length > 0) { const empty = Array(12).fill(0); renderSimResults_Table(empty, empty, empty, empty, empty, empty, empty, 0); } } }
 
 async function runAnalysis() {
         try {
@@ -448,7 +551,9 @@ async function reCalculate() {
                         const t = document.getElementById('gh_token')?.value;
                         if(t && planMonth) {
                                 const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${planMonth}.json`, { headers: { Authorization: `token ${t}` } });
-                                if(res.ok) {
+                                if(res.status === 404) {
+                                        // 파일이 없으면 조용히 건너뛰기
+                                } else if(res.ok) {
                                         const data = await res.json();
                                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
                                         // 로드된 계획 데이터를 임시 저장 (나중에 processedData에 적용)
@@ -714,7 +819,7 @@ function renderStock() {
         } catch(e) { console.error("현재고 렌더링 오류:", e); }
 }
 
-function renderMonthly() {
+async function renderMonthly() {
         try {
                 const body = document.getElementById('monthly_body'); if(!body) return; body.innerHTML = "";
                 const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
@@ -722,6 +827,17 @@ function renderMonthly() {
                 const searchCode = searchCodeEl ? (searchCodeEl.value || "").trim() : "";
                 savedFilters.wp['m_sel_wp'] = wpF; localStorage.setItem('jemini_filters', JSON.stringify(savedFilters));
                 const minL = document.getElementById('cfg_min_limit') ? parseFloat(document.getElementById('cfg_min_limit').value) || 1 : 1;
+                
+                // 현재 선택된 월의 저장된 계획 로드 (기입고 우선)
+                const planMonth = document.getElementById('plan_month')?.value;
+                let savedPlanMap = {};
+                if(planMonth) {
+                        // forceReload를 false로 하면 캐시 사용, true로 하면 강제 새로고침
+                        // 월을 변경했을 때는 캐시를 사용하되, 업로드 후에는 캐시가 이미 초기화되었으므로 새로 로드됨
+                        savedPlanMap = await loadPlanDataForMonth(planMonth, false);
+                        console.log(`[계획 수립] ${planMonth} 계획 데이터 로드: ${Object.keys(savedPlanMap).length}개 품목`);
+                }
+                
                 const f = processedData.filter(d => { 
                         if(!d || d.wp === "기타") return false;
                         if(searchCode && searchCode.length > 0) {
@@ -736,7 +852,34 @@ function renderMonthly() {
                         if(d.wp && d.wp.includes("중국")) return true; 
                         return d.category === "계획"; 
                 });
-                let tQ = 0, tA = 0, tStockA = 0; f.forEach(d => { const p = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B); tQ += p; tA += (p * d.price); tStockA += (d.stock * d.price); });
+                
+                // 저장된 계획이 있으면 우선 사용, 없으면 프로그램 계산값 사용
+                let tQ = 0, tA = 0, tStockA = 0; 
+                f.forEach(d => {
+                        const code = String(d.code).trim();
+                        const codeVariants = [code, code.replace(/\s+/g, ''), String(Number(code)) || code];
+                        
+                        // 저장된 계획 확인 (기입고 우선)
+                        let finalPlan = 0;
+                        for(const variant of codeVariants) {
+                                if(savedPlanMap[variant] !== undefined && savedPlanMap[variant] > 0) {
+                                        finalPlan = savedPlanMap[variant];
+                                        break;
+                                }
+                        }
+                        // 저장된 계획이 없으면 프로그램 계산값 사용
+                        if(finalPlan === 0) {
+                                finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        }
+                        
+                        // 임시로 저장 (표시용)
+                        d._displayPlan = finalPlan;
+                        
+                        tQ += finalPlan; 
+                        tA += (finalPlan * d.price); 
+                        tStockA += (d.stock * d.price);
+                });
+                
                 if(document.getElementById('m_sum_stock_amt_box')) document.getElementById('m_sum_stock_amt_box').innerText = `현재고: ${tStockA.toLocaleString()} 원`;
                 if(document.getElementById('m_sum_qty_box')) document.getElementById('m_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`; 
                 if(document.getElementById('m_sum_amt_box')) document.getElementById('m_sum_amt_box').innerText = `금액: ${tA.toLocaleString()} 원`;
@@ -757,7 +900,9 @@ function renderMonthly() {
                                         groupHeader.innerHTML = `<td colspan="18" class="bg-secondary text-white">📁 ${wp}</td>`;
                                         body.appendChild(groupHeader);
                                         group.forEach(d => {
-                                                const tr = document.createElement('tr'); const p = (currentLogicMode==='V20'?d.plan_A:d.plan_B), t = (currentLogicMode==='V20'?d.target_A:d.target_B), s = (currentLogicMode==='V20'?d.safety_A:d.safety_B);
+                                                const tr = document.createElement('tr'); 
+                                                const p = d._displayPlan !== undefined ? d._displayPlan : (currentLogicMode==='V20'?d.plan_A:d.plan_B);
+                                                const t = (currentLogicMode==='V20'?d.target_A:d.target_B), s = (currentLogicMode==='V20'?d.safety_A:d.safety_B);
                                                 tr.innerHTML = `<td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem('${d.code}')">×</button></td><td>${d.code}</td><td>${d.name}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="fw-bold">${d.avg.toLocaleString()}</td><td class="bg-info text-white">${d.avg3m.toLocaleString()}</td><td class="bg-warning text-dark">${(d.avg3mPlan||0).toLocaleString()}</td><td class="bg-success text-white">${d.minS.toLocaleString()}</td><td class="bg-success text-white">${d.maxS.toLocaleString()}</td><td class="text-danger fw-bold">${d.burn.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateUnit('${d.code}', this.value)"></td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="table-primary"><input type="number" class="plan-input" value="${p}" onchange="updatePlanQty('${d.code}', this.value)"></td><td class="fw-bold">${(p*d.price).toLocaleString()}</td>`;
                                                 body.appendChild(tr);
                                                 displayed++;
@@ -766,7 +911,9 @@ function renderMonthly() {
                         });
                 } else {
                         f.slice(0, displayLimits.monthly).forEach(d => {
-                                const tr = document.createElement('tr'); const p = (currentLogicMode==='V20'?d.plan_A:d.plan_B), t = (currentLogicMode==='V20'?d.target_A:d.target_B), s = (currentLogicMode==='V20'?d.safety_A:d.safety_B);
+                                const tr = document.createElement('tr'); 
+                                const p = d._displayPlan !== undefined ? d._displayPlan : (currentLogicMode==='V20'?d.plan_A:d.plan_B);
+                                const t = (currentLogicMode==='V20'?d.target_A:d.target_B), s = (currentLogicMode==='V20'?d.safety_A:d.safety_B);
                                 tr.innerHTML = `<td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem('${d.code}')">×</button></td><td>${d.code}</td><td>${d.name}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="fw-bold">${d.avg.toLocaleString()}</td><td class="bg-info text-white">${d.avg3m.toLocaleString()}</td><td class="bg-warning text-dark">${(d.avg3mPlan||0).toLocaleString()}</td><td class="bg-success text-white">${d.minS.toLocaleString()}</td><td class="bg-success text-white">${d.maxS.toLocaleString()}</td><td class="text-danger fw-bold">${d.burn.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateUnit('${d.code}', this.value)"></td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="table-primary"><input type="number" class="plan-input" value="${p}" onchange="updatePlanQty('${d.code}', this.value)"></td><td class="fw-bold">${(p*d.price).toLocaleString()}</td>`;
                                 body.appendChild(tr);
                         });
@@ -847,6 +994,7 @@ async function loadUnitOverridesFromGithub() {
                 const t = document.getElementById('gh_token')?.value;
                 if(!t) return;
                 const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/unit_overrides.json`, { headers: { Authorization: `token ${t}` } });
+                if(res.status === 404) return false; // 파일이 없으면 조용히 반환
                 if(res.ok) {
                         const data = await res.json();
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
@@ -865,7 +1013,9 @@ async function loadUnitOverridesFromGithubAll() {
                 let loadedCount = 0;
                 // 일반 포장단위 로드
                 const res1 = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/unit_overrides.json`, { headers: { Authorization: `token ${t}` } });
-                if(res1.ok) {
+                if(res1.status === 404) {
+                        // 파일이 없으면 조용히 건너뛰기
+                } else if(res1.ok) {
                         const data = await res1.json();
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
                         unitOverrides = new Map(Object.entries(loaded));
@@ -874,7 +1024,9 @@ async function loadUnitOverridesFromGithubAll() {
                 }
                 // 반제품 포장단위 로드
                 const res2 = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_unit_overrides.json`, { headers: { Authorization: `token ${t}` } });
-                if(res2.ok) {
+                if(res2.status === 404) {
+                        // 파일이 없으면 조용히 건너뛰기
+                } else if(res2.ok) {
                         const data = await res2.json();
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
                         semiUnitOverrides = new Map(Object.entries(loaded));
@@ -883,7 +1035,9 @@ async function loadUnitOverridesFromGithubAll() {
                 }
                 // 반제품 평균 사용량 로드
                 const res3 = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_avg_usage_overrides.json`, { headers: { Authorization: `token ${t}` } });
-                if(res3.ok) {
+                if(res3.status === 404) {
+                        // 파일이 없으면 조용히 건너뛰기
+                } else if(res3.ok) {
                         const data = await res3.json();
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
                         semiAvgUsageOverrides = new Map(Object.entries(loaded));
@@ -1144,6 +1298,7 @@ function sortTable(tab, idx) {
                 renderSimResults_Table(empty, empty, empty, empty, empty, empty, empty, 0); 
         }
         else if (tab === 'annual') { annualData.sort((a,b) => comp(a,b, ['code','name','spec','avg','','','','','','','','','','','','annualSum'][idx] || 'annualSum')); renderAnnual(); }
+        else if (tab === 'comparison') { comparisonData.sort((a,b) => comp(a,b, ['code','name','spec','price','forecastQty','stock','planQty','actualQty','diff','variance','accuracy','planAmt','actualAmt','amtDiff','note'][idx] || 'code')); renderComparison(); }
         else if (tab === 'semiMonthly') { 
                 const semiKeys = ['code','spec','price','stock','avgUsage','avg3mUsage','avg3mPlan','safety','target','unit','burn','pending','plan_A','amt'];
                 const key = semiKeys[idx];
@@ -1281,8 +1436,16 @@ async function getTimelineGap(r, p) {
                                                 const planData = JSON.parse(decodeURIComponent(escape(atob(j.content)))); 
                                                 return { month: m, data: planData };
                                         }
+                                        // 404는 파일이 없는 것이므로 정상 (조용히 처리)
+                                        if(res.status === 404) {
+                                                return null;
+                                        }
                                         return null;
                                 } catch(ex){
+                                        // 404 에러는 조용히 처리
+                                        if(ex.message && !ex.message.includes('404') && !ex.message.includes('Not Found')) {
+                                                console.warn(`기입고 계산 중 오류 (${m}):`, ex);
+                                        }
                                         return null;
                                 }
                         });
@@ -1352,21 +1515,43 @@ async function getTimelineGap(r, p) {
 
 async function saveToGithub() {
         try {
+                // "계획 수립" 탭이 활성화되어 있는지 확인
+                const monthlyTab = document.getElementById('monthly-pane');
+                const isMonthlyTabActive = monthlyTab && monthlyTab.classList.contains('active') && monthlyTab.classList.contains('show');
+                if(!isMonthlyTabActive) {
+                        return alert("⚠️ '계획 수립' 탭에서만 저장할 수 있습니다.\n\n현재 다른 탭이 활성화되어 있습니다. '계획 수립' 탭을 선택한 후 다시 시도해주세요.");
+                }
+                
                 const t = document.getElementById('gh_token')?.value, m = document.getElementById('plan_month')?.value;
                 if(!t || !m) return alert("GitHub 정보 확인!");
                 const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
+                
+                // 저장할 데이터 준비: 기입고(pending) 우선, 없으면 화면의 계획 사용
                 const target = processedData.filter(d => {
                         if (d.wp === "기타") return false;
                         if (wpF !== "ALL" && d.wp !== wpF) return false;
                         if (d.wp.includes("중국")) return true;
                         return d.category === "계획";
-                }).map(d => ({ code: d.code, planQty: (currentLogicMode === 'V20' ? d.plan_A : d.plan_B) }));
+                }).map(d => {
+                        // 기입고(pending) 우선 확인 - 화면에 표시된 기입고 값 사용
+                        let planQty = 0;
+                        if(d.pending && d.pending > 0) {
+                                planQty = d.pending;
+                                console.log(`[기입고 우선 저장] ${d.code}: 기입고 ${planQty} 사용 (화면 계획: ${currentLogicMode === 'V20' ? d.plan_A : d.plan_B})`);
+                        } else {
+                                // 기입고가 없으면 화면의 계획 사용
+                                planQty = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        }
+                        
+                        return { code: d.code, planQty: planQty };
+                });
+                
                 if(target.length === 0) return alert("저장할 데이터가 없습니다.");
                 const content = btoa(unescape(encodeURIComponent(JSON.stringify(target))));
                 const path = `data/plan_${m}.json`; let sha = "";
                 try { const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } }); if(res.ok) sha = (await res.json()).sha; } catch(e) {}
-                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 계획 저장`, content, sha }) });
-                alert(`저장 완료! 이제 기입고 계산에도 반영됩니다.`);
+                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 계획 저장 (기입고 우선)`, content, sha }) });
+                alert(`저장 완료! 기입고가 있으면 기입고를 우선 저장했습니다.`);
                 // 저장 후 기입고를 다시 계산하여 반영
                 setTimeout(async () => {
                         await reCalculate();
@@ -1374,6 +1559,408 @@ async function saveToGithub() {
                         renderStock();
                 }, 500);
         } catch(e) { console.error("저장 오류:", e); alert("저장 중 오류가 발생했습니다."); }
+}
+
+async function deleteAllPlansFromGithub() {
+        try {
+                const t = document.getElementById('gh_token')?.value;
+                if(!t) return alert("GitHub Token을 먼저 입력하세요.");
+                
+                if(!confirm(`⚠️ 정말로 모든 계획 파일을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.\n\n모든 plan_*.json 파일이 삭제됩니다.`)) {
+                        return;
+                }
+                
+                // data 폴더의 모든 plan_*.json 파일 목록 가져오기
+                let allFiles = [];
+                let page = 1;
+                let hasMore = true;
+                
+                while(hasMore) {
+                        try {
+                                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data?page=${page}`, {
+                                        headers: { Authorization: `token ${t}` }
+                                });
+                                if(res.ok) {
+                                        const files = await res.json();
+                                        const planFiles = files.filter(f => f.type === 'file' && f.name.startsWith('plan_') && f.name.endsWith('.json'));
+                                        if(planFiles.length === 0) {
+                                                hasMore = false;
+                                        } else {
+                                                allFiles = allFiles.concat(planFiles);
+                                                page++;
+                                        }
+                                } else {
+                                        hasMore = false;
+                                }
+                        } catch(e) {
+                                hasMore = false;
+                        }
+                }
+                
+                if(allFiles.length === 0) {
+                        return alert("삭제할 계획 파일이 없습니다.");
+                }
+                
+                if(!confirm(`총 ${allFiles.length}개의 계획 파일을 삭제하시겠습니까?\n\n파일 목록:\n${allFiles.map(f => f.name).join(', ')}`)) {
+                        return;
+                }
+                
+                // 각 파일 삭제
+                let successCount = 0;
+                let failCount = 0;
+                const errors = [];
+                
+                for(const file of allFiles) {
+                        try {
+                                // GitHub Contents API: 파일 삭제는 PUT 메서드로 빈 content(base64) 전송
+                                // 먼저 파일의 최신 SHA 가져오기
+                                let fileSha = file.sha;
+                                try {
+                                        const fileRes = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${file.path}`, {
+                                                headers: { Authorization: `token ${t}` }
+                                        });
+                                        if(fileRes.ok) {
+                                                const fileData = await fileRes.json();
+                                                fileSha = fileData.sha;
+                                        }
+                                } catch(e) {
+                                        console.warn(`SHA 가져오기 실패: ${file.name}`, e);
+                                }
+                                
+                                // 파일 삭제 (PUT 메서드로 빈 content 전송)
+                                // GitHub API: 파일 삭제는 content를 빈 문자열의 base64로 전송
+                                const emptyContent = btoa("");
+                                const deleteRes = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${file.path}`, {
+                                        method: "PUT",
+                                        headers: { 
+                                                Authorization: `token ${t}`,
+                                                'Content-Type': 'application/json',
+                                                'Accept': 'application/vnd.github.v3+json'
+                                        },
+                                        body: JSON.stringify({
+                                                message: `계획 파일 일괄 삭제: ${file.name}`,
+                                                sha: fileSha,
+                                                content: emptyContent
+                                        })
+                                });
+                                
+                                if(deleteRes.ok) {
+                                        successCount++;
+                                        console.log(`✅ 삭제 성공: ${file.name}`);
+                                } else {
+                                        const errorData = await deleteRes.json();
+                                        failCount++;
+                                        errors.push(`${file.name}: ${errorData.message || '삭제 실패'}`);
+                                        console.error(`❌ 삭제 실패: ${file.name}`, errorData);
+                                }
+                        } catch(e) {
+                                failCount++;
+                                errors.push(`${file.name}: ${e.message || '오류'}`);
+                                console.error(`❌ 삭제 오류: ${file.name}`, e);
+                        }
+                }
+                
+                // 캐시 완전 초기화
+                planDataCache = {};
+                
+                // 결과 알림
+                let message = `삭제 완료!\n\n성공: ${successCount}개\n실패: ${failCount}개`;
+                if(errors.length > 0 && errors.length <= 5) {
+                        message += `\n\n실패한 파일:\n${errors.join('\n')}`;
+                } else if(errors.length > 5) {
+                        message += `\n\n실패한 파일: ${errors.length}개 (콘솔에서 확인하세요)`;
+                }
+                alert(message);
+                
+                // 화면 새로고침
+                renderMonthly();
+        } catch(e) {
+                console.error("일괄 삭제 오류:", e);
+                alert("삭제 중 오류가 발생했습니다: " + (e.message || e));
+        }
+}
+
+async function uploadPendingPlans() {
+        try {
+                const t = document.getElementById('gh_token')?.value;
+                if(!t) return alert("GitHub Token을 먼저 입력하세요.");
+                
+                // 엑셀 파일 선택
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.xlsx,.xls';
+                input.style.display = 'none';
+                document.body.appendChild(input);
+                
+                input.onchange = async (e) => {
+                        const file = e.target.files[0];
+                        if(!file) {
+                                document.body.removeChild(input);
+                                return;
+                        }
+                        
+                        try {
+                                const raw = await readExcel(file);
+                                if(raw.length < 2) {
+                                        alert("파일 형식이 올바르지 않습니다.");
+                                        document.body.removeChild(input);
+                                        return;
+                                }
+                                
+                                const headerRow = raw[0];
+                                const codeIdx = headerRow.findIndex(h => String(h).includes("품목코드") || String(h).includes("코드"));
+                                if(codeIdx === -1) {
+                                        alert("품목코드 컬럼을 찾을 수 없습니다.");
+                                        document.body.removeChild(input);
+                                        return;
+                                }
+                                
+                                // 월별 컬럼 찾기 (25년12월, 26년1월 형식 또는 1월, 2월 형식 모두 지원)
+                                const monthMap = [];
+                                console.log("[기입고 업로드] ========== 헤더 분석 시작 ==========");
+                                console.log("[기입고 업로드] 전체 헤더:", headerRow);
+                                console.log("[기입고 업로드] 헤더 타입:", headerRow.map((h, idx) => `${idx}: ${typeof h} = "${h}"`));
+                                for(let i = 0; i < headerRow.length; i++) {
+                                        let h = String(headerRow[i] || "").trim();
+                                        const originalValue = headerRow[i];
+                                        if(!h) continue;
+                                        
+                                        console.log(`[기입고 업로드] 컬럼 ${i} 분석: 원본="${originalValue}", 타입=${typeof originalValue}, 문자열="${h}"`);
+                                        
+                                        // Excel이 날짜로 변환한 경우 처리 (예: 2025-12-01 -> "2025-12-01" 또는 Date 객체)
+                                        if(headerRow[i] instanceof Date) {
+                                                const d = headerRow[i];
+                                                const year = d.getFullYear();
+                                                const month = d.getMonth() + 1;
+                                                monthMap.push({ colIdx: i, year: year, month: month });
+                                                console.log(`[기입고 업로드] 날짜 객체 발견: "${h}" -> ${year}-${String(month).padStart(2, '0')} (컬럼 ${i})`);
+                                                continue;
+                                        }
+                                        
+                                        // "25년12월", "26년1월" 형식 인식 (더 유연한 매칭)
+                                        // 모든 공백과 특수문자 제거 후 매칭 시도
+                                        const cleanedH = h.replace(/[\s\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, ''); // 모든 종류의 공백 제거
+                                        
+                                        // "25년12월", "25년 12월", "2025년12월" 등 다양한 형식 지원
+                                        let yearMonthMatch = cleanedH.match(/(\d{2,4})년\s*(\d{1,2})월/);
+                                        if(!yearMonthMatch) {
+                                                // 공백 없이: "25년12월"
+                                                yearMonthMatch = cleanedH.match(/(\d{2,4})년(\d{1,2})월/);
+                                        }
+                                        
+                                        // "25.12", "26.1" 형식도 지원
+                                        if(!yearMonthMatch) {
+                                                yearMonthMatch = cleanedH.match(/(\d{2,4})\.(\d{1,2})/);
+                                        }
+                                        
+                                        // "2025-12", "2025/12" 형식도 지원
+                                        if(!yearMonthMatch) {
+                                                yearMonthMatch = cleanedH.match(/(\d{4})[-/](\d{1,2})/);
+                                        }
+                                        
+                                        if(yearMonthMatch) {
+                                                const yearStr = yearMonthMatch[1];
+                                                const monthNum = parseInt(yearMonthMatch[2]);
+                                                let fullYear;
+                                                
+                                                if(yearStr.length === 4) {
+                                                        // 4자리 연도: 2025, 2026
+                                                        fullYear = parseInt(yearStr);
+                                                } else {
+                                                        // 2자리 연도: 25 = 2025, 26 = 2026
+                                                        const yearNum = parseInt(yearStr);
+                                                        fullYear = yearNum < 50 ? 2000 + yearNum : 1900 + yearNum;
+                                                }
+                                                
+                                                if(monthNum >= 1 && monthNum <= 12) {
+                                                        monthMap.push({ colIdx: i, year: fullYear, month: monthNum });
+                                                        console.log(`[기입고 업로드] ✅ 연도/월 형식 발견: 원본="${h}", 정리="${cleanedH}" -> ${fullYear}-${String(monthNum).padStart(2, '0')} (컬럼 ${i})`);
+                                                }
+                                                continue;
+                                        }
+                                        
+                                        // "1월", "2월" 형식 인식 (기존 방식)
+                                        const monthMatch = h.match(/(\d{1,2})월/);
+                                        if(monthMatch) {
+                                                const monthNum = parseInt(monthMatch[1]);
+                                                if(monthNum >= 1 && monthNum <= 12) {
+                                                        monthMap.push({ colIdx: i, year: null, month: monthNum });
+                                                        console.log(`[기입고 업로드] 월 형식 발견: "${h}" -> ${monthNum}월 (컬럼 ${i})`);
+                                                }
+                                        }
+                                }
+                                console.log(`[기입고 업로드] ========== 총 ${monthMap.length}개 월 컬럼 발견 ==========`);
+                                console.log(`[기입고 업로드] 월 컬럼 상세:`, JSON.stringify(monthMap, null, 2));
+                                
+                                if(monthMap.length === 0) {
+                                        alert("월별 계획 컬럼을 찾을 수 없습니다. (예: 25년12월, 26년1월 또는 1월, 2월...)\n\n콘솔에서 헤더 분석 결과를 확인해주세요.");
+                                        document.body.removeChild(input);
+                                        return;
+                                }
+                                
+                                const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+                                const refDate = new Date(refMonth + "-01");
+                                const baseYear = refDate.getFullYear();
+                                const baseMonthNum = refDate.getMonth() + 1; // 1-based (1=1월, 12=12월)
+                                console.log(`[기입고 업로드] 실재고 기준월: ${refMonth} (${baseYear}년 ${baseMonthNum}월)`);
+                                
+                                const batchData = {};
+                                let yearExplicitCount = 0;
+                                let yearCalculatedCount = 0;
+                                
+                                for(let i = 1; i < raw.length; i++) {
+                                        const row = raw[i];
+                                        const code = String(row[codeIdx] || "").trim();
+                                        if(!code) continue;
+                                        
+                                        monthMap.forEach(({ colIdx, year, month }) => {
+                                                const planQty = Number(String(row[colIdx] || "0").replace(/,/g, "")) || 0;
+                                                if(planQty > 0) {
+                                                        let targetYear, targetMonth;
+                                                        
+                                                        // 연도가 명시되어 있으면 무조건 그 연도 사용 (절대 계산하지 않음!)
+                                                        if(year !== null && year !== undefined && !isNaN(year) && year > 0) {
+                                                                targetYear = year;
+                                                                targetMonth = month;
+                                                                yearExplicitCount++;
+                                                                console.log(`[기입고 업로드] ✅ 연도 명시 (${yearExplicitCount}번째): ${code} -> ${targetYear}-${String(targetMonth).padStart(2, '0')} = ${planQty} (헤더에서 직접 읽음, 절대 계산 안함!)`);
+                                                        } else {
+                                                                // "1월", "2월" 형식: 실재고 기준월의 연도를 기준으로 계산
+                                                                // 예: 실재고 기준월이 2026-01이고 엑셀의 "12월"이면 2025-12
+                                                                // 예: 실재고 기준월이 2026-01이고 엑셀의 "1월"이면 2026-01
+                                                                targetYear = baseYear;
+                                                                targetMonth = month;
+                                                                
+                                                                // 엑셀의 월이 실재고 기준월보다 크면 이전 연도
+                                                                if(month > baseMonthNum) {
+                                                                        targetYear = baseYear - 1;
+                                                                }
+                                                                yearCalculatedCount++;
+                                                                console.log(`[기입고 업로드] ⚠️ 월만 명시 (${yearCalculatedCount}번째): ${code} -> ${targetYear}-${String(targetMonth).padStart(2, '0')} = ${planQty} (기준월: ${refMonth}, 기준월번호: ${baseMonthNum})`);
+                                                        }
+                                                        
+                                                        const monthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+                                                        if(!batchData[monthStr]) batchData[monthStr] = [];
+                                                        batchData[monthStr].push({ code, planQty });
+                                                        console.log(`[기입고 업로드] 📝 최종 저장: ${code} -> ${monthStr} = ${planQty}`);
+                                                }
+                                        });
+                                }
+                                
+                                console.log(`[기입고 업로드] ========== 저장 요약 ==========`);
+                                console.log(`[기입고 업로드] 연도 명시된 항목: ${yearExplicitCount}개`);
+                                console.log(`[기입고 업로드] 연도 계산된 항목: ${yearCalculatedCount}개`);
+                                console.log(`[기입고 업로드] 저장될 월 목록:`, Object.keys(batchData).sort());
+                                
+                                const months = Object.keys(batchData).sort();
+                                if(months.length === 0) {
+                                        alert("업로드할 계획 데이터가 없습니다.");
+                                        document.body.removeChild(input);
+                                        return;
+                                }
+                                
+                                // 각 월별 품목 수 표시
+                                const monthDetails = months.map(m => {
+                                        const count = batchData[m].length;
+                                        const totalQty = batchData[m].reduce((sum, item) => sum + (item.planQty || 0), 0);
+                                        return `${m}: ${count}개 품목, 총 ${totalQty.toLocaleString()}개`;
+                                }).join('\n');
+                                
+                                const confirmMsg = `총 ${months.length}개월의 계획 데이터를 업로드하시겠습니까?\n\n⚠️ 저장될 월 목록:\n${monthDetails}\n\n⚠️ 연도가 올바른지 확인해주세요!\n연도 명시: ${yearExplicitCount}개, 연도 계산: ${yearCalculatedCount}개`;
+                                
+                                if(!confirm(confirmMsg)) {
+                                        document.body.removeChild(input);
+                                        return;
+                                }
+                                
+                                // 2026-12가 포함되어 있으면 경고
+                                if(months.includes('2026-12')) {
+                                        const has2025_12 = months.includes('2025-12');
+                                        if(has2025_12) {
+                                                if(!confirm(`⚠️ 경고: 2025-12와 2026-12가 모두 포함되어 있습니다!\n\n2025-12: ${batchData['2025-12']?.length || 0}개 품목\n2026-12: ${batchData['2026-12']?.length || 0}개 품목\n\n계속하시겠습니까?`)) {
+                                                        document.body.removeChild(input);
+                                                        return;
+                                                }
+                                        } else {
+                                                if(!confirm(`⚠️ 경고: 2026-12가 포함되어 있습니다!\n\n2026-12: ${batchData['2026-12']?.length || 0}개 품목\n\n25년 12월 데이터인데 26년 12월로 저장될 수 있습니다!\n\n계속하시겠습니까?`)) {
+                                                        document.body.removeChild(input);
+                                                        return;
+                                                }
+                                        }
+                                }
+                                
+                                const loadingEl = document.getElementById('loading');
+                                if(loadingEl) loadingEl.style.display = 'flex';
+                                
+                                let successCount = 0;
+                                let failCount = 0;
+                                
+                                for(const month of months) {
+                                        try {
+                                                const data = batchData[month];
+                                                const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+                                                const path = `data/plan_${month}.json`;
+                                                let sha = "";
+                                                
+                                                try {
+                                                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { 
+                                                                headers: { Authorization: `token ${t}` } 
+                                                        });
+                                                        if(res.ok) sha = (await res.json()).sha;
+                                                } catch(e) {}
+                                                
+                                                const uploadRes = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, {
+                                                        method: "PUT",
+                                                        headers: { Authorization: `token ${t}` },
+                                                        body: JSON.stringify({
+                                                                message: `${month} 계획 저장 (기입고용)`,
+                                                                content: content,
+                                                                sha: sha
+                                                        })
+                                                });
+                                
+                                                if(uploadRes.ok) {
+                                                        successCount++;
+                                                        console.log(`✅ 업로드 성공: ${month}`);
+                                                } else {
+                                                        const errorData = await uploadRes.json();
+                                                        failCount++;
+                                                        console.error(`❌ 업로드 실패: ${month}`, errorData);
+                                                }
+                                        } catch(e) {
+                                                failCount++;
+                                                console.error(`❌ 업로드 오류: ${month}`, e);
+                                        }
+                                }
+                                
+                                if(loadingEl) loadingEl.style.display = 'none';
+                                
+                                // 캐시 완전 초기화 (모든 월의 캐시 삭제)
+                                planDataCache = {};
+                                console.log(`[기입고 업로드] 계획 데이터 캐시 초기화 완료`);
+                                
+                                alert(`업로드 완료!\n\n성공: ${successCount}개월\n실패: ${failCount}개월\n\n저장된 월: ${months.join(', ')}\n\n데이터 분석을 다시 실행하면 기입고에 반영됩니다.`);
+                                
+                                if(successCount > 0 && confirm("데이터 분석을 다시 실행하여 기입고를 업데이트하시겠습니까?")) {
+                                        // 캐시를 다시 초기화하고 재계산
+                                        planDataCache = {};
+                                        await reCalculate();
+                                        renderMonthly();
+                                        renderStock();
+                                }
+                        } catch(e) {
+                                console.error("기입고 업로드 오류:", e);
+                                alert("업로드 중 오류가 발생했습니다: " + (e.message || e));
+                        } finally {
+                                document.body.removeChild(input);
+                        }
+                };
+                
+                input.click();
+        } catch(e) {
+                console.error("기입고 업로드 초기화 오류:", e);
+                alert("오류가 발생했습니다: " + (e.message || e));
+        }
 }
 
 async function saveHtmlToGithub() {
@@ -1944,30 +2531,100 @@ async function handleBatchPlanUpload(event) {
                 const specIdx = headerRow.findIndex(h => String(h).includes("규격"));
                 if(codeIdx === -1) return alert("품목코드 컬럼을 찾을 수 없습니다.");
                 const monthMap = [];
+                console.log("[일괄 업로드] ========== 헤더 분석 시작 ==========");
+                console.log("[일괄 업로드] 전체 헤더:", headerRow);
                 for(let i = 0; i < headerRow.length; i++) {
-                        const h = String(headerRow[i] || "");
+                        let h = String(headerRow[i] || "").trim();
+                        const originalValue = headerRow[i];
+                        if(!h) continue;
+                        
+                        console.log(`[일괄 업로드] 컬럼 ${i} 분석: 원본="${originalValue}", 타입=${typeof originalValue}, 문자열="${h}"`);
+                        
+                        // Excel이 날짜로 변환한 경우 처리
+                        if(headerRow[i] instanceof Date) {
+                                const d = headerRow[i];
+                                const year = d.getFullYear();
+                                const month = d.getMonth() + 1;
+                                monthMap.push({ colIdx: i, year: year, month: month });
+                                console.log(`[일괄 업로드] 날짜 객체 발견: "${h}" -> ${year}-${String(month).padStart(2, '0')} (컬럼 ${i})`);
+                                continue;
+                        }
+                        
+                        // "25년12월", "26년1월" 형식 인식
+                        const cleanedH = h.replace(/[\s\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, '');
+                        let yearMonthMatch = cleanedH.match(/(\d{2,4})년\s*(\d{1,2})월/);
+                        if(!yearMonthMatch) {
+                                yearMonthMatch = cleanedH.match(/(\d{2,4})년(\d{1,2})월/);
+                        }
+                        if(!yearMonthMatch) {
+                                yearMonthMatch = cleanedH.match(/(\d{2,4})\.(\d{1,2})/);
+                        }
+                        if(!yearMonthMatch) {
+                                yearMonthMatch = cleanedH.match(/(\d{4})[-/](\d{1,2})/);
+                        }
+                        
+                        if(yearMonthMatch) {
+                                const yearStr = yearMonthMatch[1];
+                                const monthNum = parseInt(yearMonthMatch[2]);
+                                let fullYear;
+                                
+                                if(yearStr.length === 4) {
+                                        fullYear = parseInt(yearStr);
+                                } else {
+                                        const yearNum = parseInt(yearStr);
+                                        fullYear = yearNum < 50 ? 2000 + yearNum : 1900 + yearNum;
+                                }
+                                
+                                if(monthNum >= 1 && monthNum <= 12) {
+                                        monthMap.push({ colIdx: i, year: fullYear, month: monthNum });
+                                        console.log(`[일괄 업로드] ✅ 연도/월 형식 발견: 원본="${h}", 정리="${cleanedH}" -> ${fullYear}-${String(monthNum).padStart(2, '0')} (컬럼 ${i})`);
+                                }
+                                continue;
+                        }
+                        
+                        // "1월", "2월" 형식 인식 (기존 방식)
                         const monthMatch = h.match(/(\d{1,2})월/);
                         if(monthMatch) {
                                 const monthNum = parseInt(monthMatch[1]);
                                 if(monthNum >= 1 && monthNum <= 12) {
-                                        monthMap.push({ colIdx: i, month: monthNum });
+                                        monthMap.push({ colIdx: i, year: null, month: monthNum });
+                                        console.log(`[일괄 업로드] ⚠️ 월 형식 발견: "${h}" -> ${monthNum}월 (컬럼 ${i})`);
                                 }
                         }
                 }
-                if(monthMap.length === 0) return alert("월별 계획 컬럼을 찾을 수 없습니다. (예: 1월, 2월, 3월...)");
+                console.log(`[일괄 업로드] ========== 총 ${monthMap.length}개 월 컬럼 발견 ==========`);
+                console.log(`[일괄 업로드] 월 컬럼 상세:`, JSON.stringify(monthMap, null, 2));
+                
+                if(monthMap.length === 0) return alert("월별 계획 컬럼을 찾을 수 없습니다. (예: 25년12월, 26년1월 또는 1월, 2월...)\n\n콘솔에서 헤더 분석 결과를 확인해주세요.");
+                
                 const batchData = {};
+                let yearExplicitCount = 0;
+                let yearCalculatedCount = 0;
+                
                 for(let i = 1; i < raw.length; i++) {
                         const row = raw[i];
                         const code = String(row[codeIdx] || "").trim();
                         if(!code) continue;
-                        monthMap.forEach(({ colIdx, month }) => {
+                        monthMap.forEach(({ colIdx, year, month }) => {
                                 const planQty = Number(String(row[colIdx] || "0").replace(/,/g, "")) || 0;
                                 if(planQty > 0) {
-                                        // 엑셀의 "1월"은 실재고 기준월
-                                        // 예: 실재고 기준월이 2026-01이면, 엑셀의 "1월"은 2026-01
-                                        const targetDate = new Date(baseYear, baseMonth + month - 1, 1);
-                                        const targetYear = targetDate.getFullYear();
-                                        const targetMonth = targetDate.getMonth() + 1; // 1-based
+                                        let targetYear, targetMonth;
+                                        
+                                        // 연도가 명시되어 있으면 무조건 그 연도 사용
+                                        if(year !== null && year !== undefined && !isNaN(year) && year > 0) {
+                                                targetYear = year;
+                                                targetMonth = month;
+                                                yearExplicitCount++;
+                                                console.log(`[일괄 업로드] ✅ 연도 명시: ${code} -> ${targetYear}-${String(targetMonth).padStart(2, '0')} = ${planQty}`);
+                                        } else {
+                                                // "1월", "2월" 형식: 실재고 기준월 기준으로 계산
+                                                const targetDate = new Date(baseYear, baseMonth + month - 1, 1);
+                                                targetYear = targetDate.getFullYear();
+                                                targetMonth = targetDate.getMonth() + 1;
+                                                yearCalculatedCount++;
+                                                console.log(`[일괄 업로드] ⚠️ 월만 명시: ${code} -> ${targetYear}-${String(targetMonth).padStart(2, '0')} = ${planQty} (기준월: ${refMonth})`);
+                                        }
+                                        
                                         const monthStr = String(targetMonth).padStart(2, '0');
                                         const fileName = `plan_${targetYear}-${monthStr}.json`;
                                         if(!batchData[fileName]) batchData[fileName] = [];
@@ -1975,6 +2632,11 @@ async function handleBatchPlanUpload(event) {
                                 }
                         });
                 }
+                
+                console.log(`[일괄 업로드] ========== 저장 요약 ==========`);
+                console.log(`[일괄 업로드] 연도 명시된 항목: ${yearExplicitCount}개`);
+                console.log(`[일괄 업로드] 연도 계산된 항목: ${yearCalculatedCount}개`);
+                console.log(`[일괄 업로드] 저장될 파일 목록:`, Object.keys(batchData).sort());
                 const fileNames = Object.keys(batchData);
                 if(fileNames.length === 0) return alert("업로드할 계획 데이터가 없습니다.");
                 const loadingEl = document.getElementById('loading');
@@ -2062,6 +2724,62 @@ async function handleSemiProductUpload(event) {
                 semiProductData = [];
                 const typeSet = new Set();
                 let currentType = "";
+                
+                // 헤더에서 월별 컬럼 찾기 (25년12월, 26년1월 형식 또는 고정 인덱스)
+                const headerRow = raw[0] || [];
+                const monthColumns = [];
+                
+                // 먼저 헤더에서 "25년12월", "26년1월" 형식 찾기
+                for(let i = 0; i < headerRow.length; i++) {
+                        const h = String(headerRow[i] || "");
+                        const yearMonthMatch = h.match(/(\d{2})년(\d{1,2})월/);
+                        if(yearMonthMatch) {
+                                const yearNum = parseInt(yearMonthMatch[1]);
+                                const monthNum = parseInt(yearMonthMatch[2]);
+                                const fullYear = yearNum < 50 ? 2000 + yearNum : 1900 + yearNum;
+                                if(monthNum >= 1 && monthNum <= 12) {
+                                        monthColumns.push({ colIdx: i, year: fullYear, month: monthNum });
+                                }
+                        }
+                }
+                
+                // 헤더에서 찾지 못했으면 고정 인덱스 사용 (기존 방식)
+                const useFixedIndex = monthColumns.length === 0;
+                if(useFixedIndex) {
+                        // 고정 인덱스: 11(11월), 12(12월), 13(1월), 14(2월), 15(3월), 16(4월)
+                        const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+                        const refDate = new Date(refMonth + "-01");
+                        const refYear = refDate.getFullYear();
+                        const refMonthIdx = refDate.getMonth(); // 0-based
+                        for(let i = 11; i <= 16; i++) {
+                                let targetYear, targetMonth;
+                                if(i === 11) {
+                                        targetYear = refYear;
+                                        targetMonth = refMonthIdx - 2;
+                                        if(targetMonth < 0) {
+                                                targetYear = refYear - 1;
+                                                targetMonth = 12 + targetMonth;
+                                        }
+                                } else if(i === 12) {
+                                        targetYear = refYear;
+                                        targetMonth = refMonthIdx - 1;
+                                        if(targetMonth < 0) {
+                                                targetYear = refYear - 1;
+                                                targetMonth = 12 + targetMonth;
+                                        }
+                                } else {
+                                        const monthOffset = i - 13;
+                                        targetYear = refYear;
+                                        targetMonth = refMonthIdx + monthOffset;
+                                        if(targetMonth > 11) {
+                                                targetYear = refYear + 1;
+                                                targetMonth = targetMonth - 12;
+                                        }
+                                }
+                                monthColumns.push({ colIdx: i, year: targetYear, month: targetMonth + 1 });
+                        }
+                }
+                
                 raw.forEach((row, idx) => {
                         if(idx === 0) return;
                         const type = String(row[0] || "").trim();
@@ -2082,51 +2800,16 @@ async function handleSemiProductUpload(event) {
                         if(!erp || !spec) return;
                         const monthlyPlans = [];
                         const monthlyPlanDates = [];
-                        // 실재고 기준월을 기준으로 엑셀의 "11월", "12월", "1월", "2월" 등을 해석
-                        // 엑셀 구조: i=11(11월), i=12(12월), i=13(1월), i=14(2월), i=15(3월), i=16(4월)
-                        const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
-                        const refDate = new Date(refMonth + "-01");
-                        const refYear = refDate.getFullYear();
-                        const refMonthIdx = refDate.getMonth(); // 0-based (0=1월, 11=12월)
-                        for(let i = 11; i <= 16; i++) {
-                                const planVal = Number(String(row[i] || "0").replace(/,/g, "")) || 0;
+                        
+                        monthColumns.forEach(({ colIdx, year, month }) => {
+                                const planVal = Number(String(row[colIdx] || "0").replace(/,/g, "")) || 0;
                                 monthlyPlans.push(planVal);
-                                // 엑셀의 월 해석: i=11(11월), i=12(12월), i=13(1월), i=14(2월), i=15(3월), i=16(4월)
-                                // i=11,12는 이전 연도, i=13~16은 현재 연도
-                                let targetYear, targetMonth;
-                                if(i === 11) {
-                                        // 11월: 실재고 기준월의 2개월 전
-                                        targetYear = refYear;
-                                        targetMonth = refMonthIdx - 2;
-                                        if(targetMonth < 0) {
-                                                targetYear = refYear - 1;
-                                                targetMonth = 12 + targetMonth;
-                                        }
-                                } else if(i === 12) {
-                                        // 12월: 실재고 기준월의 1개월 전
-                                        targetYear = refYear;
-                                        targetMonth = refMonthIdx - 1;
-                                        if(targetMonth < 0) {
-                                                targetYear = refYear - 1;
-                                                targetMonth = 12 + targetMonth;
-                                        }
-                                } else {
-                                        // 1월~4월: 실재고 기준월부터 시작 (i=13이 1월, i=14가 2월, ...)
-                                        const monthOffset = i - 13; // 0, 1, 2, 3
-                                        targetYear = refYear;
-                                        targetMonth = refMonthIdx + monthOffset;
-                                        if(targetMonth > 11) {
-                                                targetYear = refYear + 1;
-                                                targetMonth = targetMonth - 12;
-                                        }
-                                }
-                                const targetDate = new Date(targetYear, targetMonth, 1);
-                                const monthStr = targetDate.toISOString().substring(0, 7);
+                                const monthStr = `${year}-${String(month).padStart(2, '0')}`;
                                 monthlyPlanDates.push(monthStr);
                                 if(planVal > 0) {
-                                        console.log(`[반제품 엑셀 읽기] ${erp}: ${monthStr} = ${planVal} (셀 인덱스: ${i}, 기준월: ${refMonth})`);
+                                        console.log(`[반제품 엑셀 읽기] ${erp}: ${monthStr} = ${planVal} (컬럼 인덱스: ${colIdx})`);
                                 }
-                        }
+                        });
                         const usage = baseStock + totalInbound - currentStock;
                         const avgUsageFromHistory = usage > 0 ? usage / 12 : 0;
                         const recent3Months = monthlyPlans.slice(-3).filter(v => v > 0);
@@ -2492,11 +3175,38 @@ async function updateSemiSafetyTarget() {
         } catch(e) { console.error("반제품 안전/적정재고 업데이트 오류:", e); }
 }
 
-function renderSemiMonthly() {
+async function renderSemiMonthly() {
         try {
                 const body = document.getElementById('semi_monthly_body');
                 if(!body) return;
                 body.innerHTML = "";
+                
+                // 현재 선택된 월의 저장된 계획 로드 (기입고 우선)
+                const planMonth = document.getElementById('semi_plan_month')?.value;
+                let savedPlanMap = {};
+                if(planMonth) {
+                        try {
+                                const t = document.getElementById('gh_token')?.value;
+                                if(t) {
+                                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${planMonth}.json`, { 
+                                                headers: { Authorization: `token ${t}` } 
+                                        });
+                                        if(res.status === 404) {
+                                                // 파일이 없으면 조용히 건너뛰기
+                                        } else if(res.ok) {
+                                                const data = await res.json();
+                                                const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                                                loaded.forEach(item => {
+                                                        const codeKey = String(item.code || "").trim();
+                                                        savedPlanMap[codeKey] = item.planQty || 0;
+                                                });
+                                        }
+                                }
+                        } catch(e) {
+                                // 404 등은 정상 (저장된 계획이 없는 경우)
+                        }
+                }
+                
                 const typeF = document.getElementById('semi_sel_type')?.value || "ALL";
                 const searchCodeEl = document.getElementById('semi_search_code');
                 const searchCode = searchCodeEl ? (searchCodeEl.value || "").trim() : "";
@@ -2509,19 +3219,37 @@ function renderSemiMonthly() {
                         }
                         return true;
                 });
+                
                 // 합계는 필터링된 전체 데이터에 대해 계산 (완제품과 동일하게)
                 let tQ = 0, tA = 0, tStockA = 0;
                 f.forEach(d => {
-                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
-                        tQ += p;
-                        tA += (p * d.price);
+                        // 저장된 계획 확인 (기입고 우선)
+                        let finalPlan = 0;
+                        const codeKey = String(d.code || "").trim();
+                        if(savedPlanMap[codeKey] !== undefined && savedPlanMap[codeKey] > 0) {
+                                finalPlan = savedPlanMap[codeKey];
+                        } else {
+                                // 저장된 계획이 없으면 계산된 계획 사용
+                                finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        }
+                        tQ += finalPlan;
+                        tA += (finalPlan * d.price);
                         tStockA += (d.stock * d.price);
                 });
+                
                 // 렌더링은 표시 제한 내에서만
                 f.slice(0, displayLimits.semiMonthly).forEach(d => {
-                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
-                        const tr = document.createElement('tr');
+                        // 저장된 계획 확인 (기입고 우선)
+                        let finalPlan = 0;
                         const codeKey = String(d.code || "").trim();
+                        if(savedPlanMap[codeKey] !== undefined && savedPlanMap[codeKey] > 0) {
+                                finalPlan = savedPlanMap[codeKey];
+                        } else {
+                                // 저장된 계획이 없으면 계산된 계획 사용
+                                finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        }
+                        
+                        const tr = document.createElement('tr');
                         const codeOriginal = String(d.code || "");
                         let displayAvgUsage = d.avgUsage || 0;
                         if(semiAvgUsageOverrides.has(codeKey)) displayAvgUsage = semiAvgUsageOverrides.get(codeKey);
@@ -2529,7 +3257,7 @@ function renderSemiMonthly() {
                         else if(semiAvgUsageOverrides.has(String(d.code || "").trim())) displayAvgUsage = semiAvgUsageOverrides.get(String(d.code || "").trim());
                         const t = (currentSemiLogicMode === 'V20' ? (d.target_A || d.target) : (d.target_B || d.target));
                         const s = (currentSemiLogicMode === 'V20' ? (d.safety_A || d.safety) : (d.safety_B || d.safety));
-                        tr.innerHTML = `<td>${d.code}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="text-info bg-light"><input type="number" class="form-control form-control-sm" style="width:80px; text-align:center;" value="${displayAvgUsage}" onchange="updateSemiAvgUsage('${d.code}', this.value)"></td><td class="bg-info text-white">${(d.avg3mUsage || 0).toLocaleString()}</td><td class="bg-warning text-dark">${d.avg3mPlan.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateSemiUnit('${d.code}', this.value)"></td><td class="text-danger fw-bold">${(d.burn || 0).toLocaleString()}</td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="plan-input"><input type="number" class="form-control form-control-sm plan-input" value="${p}" onchange="updateSemiPlanQty('${d.code}', this.value)"></td><td class="text-success fw-bold">${(p * d.price).toLocaleString()}</td>`;
+                        tr.innerHTML = `<td>${d.code}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="text-info bg-light"><input type="number" class="form-control form-control-sm" style="width:80px; text-align:center;" value="${displayAvgUsage}" onchange="updateSemiAvgUsage('${d.code}', this.value)"></td><td class="bg-info text-white">${(d.avg3mUsage || 0).toLocaleString()}</td><td class="bg-warning text-dark">${d.avg3mPlan.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateSemiUnit('${d.code}', this.value)"></td><td class="text-danger fw-bold">${(d.burn || 0).toLocaleString()}</td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="plan-input"><input type="number" class="form-control form-control-sm plan-input" value="${finalPlan}" onchange="updateSemiPlanQty('${d.code}', this.value)"></td><td class="text-success fw-bold">${(finalPlan * d.price).toLocaleString()}</td>`;
                         body.appendChild(tr);
                 });
                 if(document.getElementById('semi_sum_qty_box')) document.getElementById('semi_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`;
@@ -2613,6 +3341,7 @@ async function loadSemiUnitOverridesFromGithub() {
                 const t = document.getElementById('gh_token')?.value;
                 if(!t) return;
                 const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_unit_overrides.json`, { headers: { Authorization: `token ${t}` } });
+                if(res.status === 404) return; // 파일이 없으면 조용히 반환
                 if(res.ok) {
                         const data = await res.json();
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
@@ -2627,6 +3356,7 @@ async function loadSemiAvgUsageOverridesFromGithub() {
                 const t = document.getElementById('gh_token')?.value;
                 if(!t) return;
                 const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_avg_usage_overrides.json`, { headers: { Authorization: `token ${t}` } });
+                if(res.status === 404) return; // 파일이 없으면 조용히 반환
                 if(res.ok) {
                         const data = await res.json();
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
@@ -2691,18 +3421,45 @@ function renderSemiAnnual() {
 
 async function saveSemiToGithub() {
         try {
+                // "계획 수립(반제품)" 탭이 활성화되어 있는지 확인
+                const semiMonthlyTab = document.getElementById('semi-monthly-pane');
+                const isSemiMonthlyTabActive = semiMonthlyTab && semiMonthlyTab.classList.contains('active') && semiMonthlyTab.classList.contains('show');
+                if(!isSemiMonthlyTabActive) {
+                        return alert("⚠️ '계획 수립(반제품)' 탭에서만 저장할 수 있습니다.\n\n현재 다른 탭이 활성화되어 있습니다. '계획 수립(반제품)' 탭을 선택한 후 다시 시도해주세요.");
+                }
+                
                 const t = document.getElementById('gh_token')?.value, m = document.getElementById('semi_plan_month')?.value;
                 if(!t || !m) return alert("GitHub 정보 확인!");
+                
+                // 저장할 데이터 준비: 기입고(pending) 우선, 없으면 화면의 계획 사용
                 const target = semiProductData.filter(d => {
                         const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                         return p > 0;
-                }).map(d => ({ code: d.code, planQty: (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B) }));
+                }).map(d => {
+                        // 기입고(pending) 우선 확인 - 화면에 표시된 기입고 값 사용
+                        let planQty = 0;
+                        if(d.pending && d.pending > 0) {
+                                planQty = d.pending;
+                                console.log(`[반제품 기입고 우선 저장] ${d.code}: 기입고 ${planQty} 사용 (화면 계획: ${currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B})`);
+                        } else {
+                                // 기입고가 없으면 화면의 계획 사용
+                                planQty = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                        }
+                        
+                        return { code: d.code, planQty: planQty };
+                });
+                
                 if(target.length === 0) return alert("저장할 데이터가 없습니다.");
                 const content = btoa(unescape(encodeURIComponent(JSON.stringify(target))));
                 const path = `data/semi_plan_${m}.json`; let sha = "";
                 try { const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } }); if(res.ok) sha = (await res.json()).sha; } catch(e) {}
-                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 반제품 계획 저장`, content, sha }) });
-                alert(`반제품 계획 저장 완료!`);
+                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 반제품 계획 저장 (기입고 우선)`, content, sha }) });
+                alert(`반제품 계획 저장 완료! 기입고가 있으면 기입고를 우선 저장했습니다.`);
+                // 저장 후 기입고를 다시 계산하여 반영
+                setTimeout(async () => {
+                        await calculateSemiProduct();
+                        renderSemiMonthly();
+                }, 500);
         } catch(e) { console.error("반제품 저장 오류:", e); alert("저장 중 오류가 발생했습니다."); }
 }
 
@@ -2804,6 +3561,353 @@ function downloadSemiMonthly() {
                 XLSX.writeFile(wb, `반제품생산계획_${planMonth}.xlsx`);
                 alert("다운로드 완료!");
         } catch(e) { console.error("반제품 다운로드 오류:", e); alert("다운로드 중 오류가 발생했습니다."); }
+}
+
+// ========== 실적 비교 기능 ==========
+function renderComparison() {
+        try {
+                const body = document.getElementById('comparison_body');
+                if(!body) return;
+                body.innerHTML = "";
+                displayLimits.comparison = 50;
+                
+                let targetMonth = document.getElementById('comparison_month')?.value;
+                if(!targetMonth) {
+                        // 현재 월의 전월을 기본값으로 설정
+                        const now = new Date();
+                        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                        targetMonth = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+                        const comparisonMonthEl = document.getElementById('comparison_month');
+                        if(comparisonMonthEl) {
+                                comparisonMonthEl.value = targetMonth;
+                        } else {
+                                body.innerHTML = "<tr><td colspan='12' class='text-center text-muted'>비교 기준월을 선택하세요.</td></tr>";
+                                return;
+                        }
+                }
+                const wpFilter = document.getElementById('comp_sel_wp')?.value || "ALL";
+                
+                // 작업장 필터 업데이트
+                const wpSelect = document.getElementById('comp_sel_wp');
+                if(wpSelect) {
+                        const wps = [...new Set(processedData.map(d => d.wp))].sort();
+                        const currentVal = wpSelect.value;
+                        wpSelect.innerHTML = '<option value="ALL">전체</option>' + wps.map(w => `<option value="${w}">${w}</option>`).join('');
+                        wpSelect.value = wps.includes(currentVal) ? currentVal : "ALL";
+                }
+                
+                document.getElementById('comp_target_month').textContent = targetMonth;
+                
+                // 해당 월의 저장된 계획 데이터 로드
+                loadPlanDataForComparison(targetMonth).then(planMap => {
+                        console.log(`[실적 비교] ${targetMonth} 계획 데이터 로드: ${Object.keys(planMap).length}개 품목`);
+                        
+                        // 누적 판매 데이터에서 해당 월의 매출 추출
+                        const [targetYear, targetMonthNum] = targetMonth.split('-').map(Number);
+                        const monthIndex = targetMonthNum - 1; // 0-based index (0=1월, 11=12월)
+                        
+                        // rawData.salesByYear에서 해당 월의 매출 추출
+                        const actualSales = {};
+                        if(rawData.salesByYear && rawData.salesByYear[targetYear]) {
+                                Object.keys(rawData.salesByYear[targetYear]).forEach(code => {
+                                        const monthlyData = rawData.salesByYear[targetYear][code];
+                                        if(monthlyData && monthlyData[monthIndex] !== undefined) {
+                                                const qty = monthlyData[monthIndex] || 0;
+                                                if(qty > 0) {
+                                                        actualSales[code] = qty;
+                                                        // 코드 변형도 저장
+                                                        const codeNoSpace = code.replace(/\s+/g, '');
+                                                        const codeNum = String(Number(code)) || code;
+                                                        if(codeNoSpace !== code) actualSales[codeNoSpace] = qty;
+                                                        if(codeNum !== code && codeNum !== codeNoSpace) actualSales[codeNum] = qty;
+                                                }
+                                        }
+                                });
+                        }
+                        console.log(`[실적 비교] ${targetMonth} 매출 데이터: ${Object.keys(actualSales).length}개 품목`);
+                        
+                        comparisonData = [];
+                        // 작업장 필터는 표시용으로만 사용 (작업장별 품목 목록 필터링)
+                        const filtered = processedData.filter(d => {
+                                if(d.wp === "기타") return false;
+                                if(wpFilter !== "ALL" && d.wp !== wpFilter) return false;
+                                // 중국 작업장은 category와 상관없이 모두 비교
+                                if(d.wp.includes("중국")) return true;
+                                // 중국이 아니면 "계획" 카테고리만 비교
+                                return d.category === "계획";
+                        });
+                        
+                        filtered.forEach(d => {
+                                const code = String(d.code).trim();
+                                const codeVariants = [
+                                        code,
+                                        code.replace(/\s+/g, ''),
+                                        String(Number(code)) || code
+                                ];
+                                
+                                // 판매량: 누적 판매 데이터에서 추출
+                                let actualQty = 0;
+                                for(const variant of codeVariants) {
+                                        if(actualSales[variant] !== undefined) {
+                                                actualQty = actualSales[variant];
+                                                break;
+                                        }
+                                }
+                                
+                                // 계획량: 저장된 계획 데이터에서 추출 (해당 월의 plan_YYYY-MM.json 파일에서)
+                                let planQty = 0;
+                                for(const variant of codeVariants) {
+                                        if(planMap[variant] !== undefined && planMap[variant] > 0) {
+                                                planQty = planMap[variant];
+                                                break;
+                                        }
+                                }
+                                
+                                if(planQty > 0 || actualQty > 0) {
+                                        const diff = actualQty - planQty;
+                                        
+                                        // 판매 예측량 (avg) - 재고를 고려하기 전 예측 판매량
+                                        const forecastQty = d.avg || 0;
+                                        
+                                        // 현재고
+                                        const currentStock = d.stock || 0;
+                                        
+                                        // 재고 고려 여부 판단
+                                        // 계획량이 0이고 재고가 충분하면 "재고 충분" 표시
+                                        let note = "";
+                                        let isStockSufficient = false; // 재고 충분 여부 플래그
+                                        
+                                        if(planQty === 0 && actualQty > 0) {
+                                                // 계획량이 0인데 매출이 있는 경우
+                                                if(currentStock >= actualQty) {
+                                                        note = "✅ 재고 충분";
+                                                        isStockSufficient = true; // 재고 충분으로 정확도 만족
+                                                } else if(forecastQty > 0 && actualQty <= forecastQty) {
+                                                        note = "✅ 예측 범위 내";
+                                                } else {
+                                                        note = "⚠️ 계획 부족";
+                                                }
+                                        } else if(planQty > 0) {
+                                                // 계획량이 있는 경우: 계획량 대비 정확도 기준으로 판단
+                                                // (정확도 컬럼과 일치하도록)
+                                                const variance = Math.abs(diff) / planQty * 100;
+                                                const calculatedAccuracy = 100 - variance;
+                                                
+                                                if(calculatedAccuracy >= 90) {
+                                                        note = "✅ 계획 정확";
+                                                } else if(calculatedAccuracy >= 70) {
+                                                        note = "⚠️ 계획 차이";
+                                                } else {
+                                                        note = "❌ 계획 오차";
+                                                }
+                                        }
+                                        
+                                        // 증감률과 정확도 계산 (계획량 기준)
+                                        const variance = planQty > 0 ? ((diff / planQty) * 100) : (actualQty > 0 ? 100 : 0);
+                                        // 재고 충분 상황은 정확도를 100%로 처리 (계획이 맞았다고 판단)
+                                        const accuracy = isStockSufficient ? 100 : (planQty > 0 ? (100 - Math.abs(variance)) : 0);
+                                        
+                                        // 예측 대비 실제 매출 정확도 (계획량이 0인 경우에도 의미있는 지표)
+                                        const forecastAccuracy = forecastQty > 0 ? (100 - Math.abs(actualQty - forecastQty) / forecastQty * 100) : 0;
+                                        
+                                        const planAmt = planQty * d.price;
+                                        const actualAmt = actualQty * d.price;
+                                        const amtDiff = actualAmt - planAmt;
+                                        
+                                        comparisonData.push({
+                                                code: d.code,
+                                                name: d.name,
+                                                spec: d.spec,
+                                                price: d.price,
+                                                forecastQty: forecastQty,
+                                                stock: currentStock,
+                                                planQty: planQty,
+                                                actualQty: actualQty,
+                                                diff: diff,
+                                                variance: variance,
+                                                accuracy: accuracy,
+                                                forecastAccuracy: forecastAccuracy,
+                                                planAmt: planAmt,
+                                                actualAmt: actualAmt,
+                                                amtDiff: amtDiff,
+                                                note: note,
+                                                wp: d.wp,
+                                                isStockSufficient: isStockSufficient
+                                        });
+                                }
+                        });
+                        
+                        // 비고 필터 적용
+                        const noteFilter = document.getElementById('comp_sel_note')?.value || "ALL";
+                        if(noteFilter !== "ALL") {
+                                // 비고 필터 매핑 (필터 옵션 값 -> 실제 note 값)
+                                const noteFilterMap = {
+                                        "재고 충분": "✅ 재고 충분",
+                                        "예측 범위 내": "✅ 예측 범위 내",
+                                        "계획 정확": "✅ 계획 정확",
+                                        "계획 차이": "⚠️ 계획 차이",
+                                        "계획 부족": "⚠️ 계획 부족",
+                                        "계획 오차": "❌ 계획 오차"
+                                };
+                                const targetNote = noteFilterMap[noteFilter];
+                                if(targetNote) {
+                                        comparisonData = comparisonData.filter(d => d.note === targetNote);
+                                }
+                        }
+                        
+                        // 통계 계산
+                        let totalAccuracy = 0;
+                        let accuracyCount = 0;
+                        let totalVariance = 0;
+                        let varianceCount = 0;
+                        let totalPlanAmt = 0;
+                        let totalActualAmt = 0;
+                        
+                        comparisonData.forEach(d => {
+                                // 정확도 계산: 재고 충분이거나 계획량이 있는 경우
+                                if(d.isStockSufficient || d.planQty > 0) {
+                                        totalAccuracy += d.accuracy;
+                                        accuracyCount++;
+                                }
+                                // 증감률 계산: 계획량이 있는 경우만
+                                if(d.planQty > 0) {
+                                        totalVariance += d.variance;
+                                        varianceCount++;
+                                }
+                                totalPlanAmt += d.planAmt;
+                                totalActualAmt += d.actualAmt;
+                        });
+                        
+                        const overallAccuracy = accuracyCount > 0 ? (totalAccuracy / accuracyCount) : 0;
+                        const overallVariance = varianceCount > 0 ? (totalVariance / varianceCount) : 0;
+                        
+                        document.getElementById('comp_overall_accuracy').textContent = overallAccuracy.toFixed(1);
+                        document.getElementById('comp_variance').textContent = overallVariance.toFixed(1);
+                        document.getElementById('comp_item_count').textContent = comparisonData.length;
+                        
+                        // 테이블 렌더링
+                        const toRender = comparisonData.slice(0, displayLimits.comparison);
+                        toRender.forEach(d => {
+                                const tr = document.createElement('tr');
+                                const varianceColor = d.variance > 10 ? 'text-danger' : d.variance < -10 ? 'text-info' : 'text-success';
+                                const accuracyColor = d.accuracy >= 90 ? 'text-success' : d.accuracy >= 70 ? 'text-warning' : 'text-danger';
+                                
+                                // 계획량이 0인 경우 특별 표시
+                                const planQtyDisplay = d.planQty === 0 ? `<span class="text-muted">0</span>` : `<span class="fw-bold">${d.planQty.toLocaleString()}</span>`;
+                                const planQtyClass = d.planQty === 0 ? 'text-muted' : 'fw-bold';
+                                
+                                // 비고 색상
+                                let noteColor = '';
+                                if(d.note && d.note.includes('✅')) noteColor = 'text-success';
+                                else if(d.note && d.note.includes('⚠️')) noteColor = 'text-warning';
+                                else if(d.note && d.note.includes('❌')) noteColor = 'text-danger';
+                                
+                                tr.innerHTML = `
+                                        <td>${d.code}</td>
+                                        <td>${d.name}</td>
+                                        <td>${d.spec}</td>
+                                        <td>${d.price.toLocaleString()}</td>
+                                        <td class="text-info">${d.forecastQty.toLocaleString()}</td>
+                                        <td class="text-secondary">${d.stock.toLocaleString()}</td>
+                                        <td class="${planQtyClass}">${planQtyDisplay}</td>
+                                        <td class="fw-bold ${d.actualQty > d.planQty ? 'text-danger' : d.actualQty < d.planQty ? 'text-info' : ''}">${d.actualQty.toLocaleString()}</td>
+                                        <td class="${varianceColor}">${d.diff > 0 ? '+' : ''}${d.diff.toLocaleString()}</td>
+                                        <td class="${varianceColor} fw-bold">${d.variance > 0 ? '+' : ''}${d.variance.toFixed(1)}%</td>
+                                        <td class="${accuracyColor} fw-bold">${d.accuracy.toFixed(1)}%</td>
+                                        <td>${d.planAmt.toLocaleString()}</td>
+                                        <td>${d.actualAmt.toLocaleString()}</td>
+                                        <td class="${d.amtDiff > 0 ? 'text-danger' : d.amtDiff < 0 ? 'text-info' : ''}">${d.amtDiff > 0 ? '+' : ''}${d.amtDiff.toLocaleString()}</td>
+                                        <td class="small ${noteColor}">${d.note || '-'}</td>
+                                `;
+                                body.appendChild(tr);
+                        });
+                        
+                        if(comparisonData.length === 0) {
+                                body.innerHTML = "<tr><td colspan='12' class='text-center text-muted'>비교할 데이터가 없습니다.<br>1. 누적 판매 데이터를 업로드했는지 확인하세요.<br>2. 해당 월의 계획 데이터가 저장되어 있는지 확인하세요. (plan_" + targetMonth + ".json)</td></tr>";
+                        }
+                }).catch(e => {
+                        console.error("비교 데이터 로드 오류:", e);
+                        body.innerHTML = "<tr><td colspan='12' class='text-center text-danger'>데이터 로드 중 오류가 발생했습니다: " + (e.message || e) + "</td></tr>";
+                });
+        } catch(e) {
+                console.error("비교 렌더링 오류:", e);
+                alert("비교 실행 중 오류가 발생했습니다: " + e.message);
+        }
+}
+
+let planDataCache = {}; // { "YYYY-MM": { code: planQty } }
+
+async function loadPlanDataForMonth(month, forceReload = false) {
+        if(!forceReload && planDataCache[month]) return planDataCache[month];
+        try {
+                const t = document.getElementById('gh_token')?.value;
+                if(!t) {
+                        planDataCache[month] = {};
+                        return {};
+                }
+                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${month}.json`, { 
+                        headers: { Authorization: `token ${t}` } 
+                });
+                
+                if(res.status === 404) {
+                        // 파일이 없으면 빈 맵 반환 (삭제된 경우) - 정상 상황이므로 조용히 처리
+                        planDataCache[month] = {};
+                        return {};
+                }
+                
+                if(res.ok) {
+                        const data = await res.json();
+                        const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                        const planMap = {};
+                        loaded.forEach(item => {
+                                const code = String(item.code || "").trim();
+                                if(code) {
+                                        planMap[code] = item.planQty || 0;
+                                        // 코드 변형도 저장
+                                        const codeNoSpace = code.replace(/\s+/g, '');
+                                        const codeNum = String(Number(code)) || code;
+                                        if(codeNoSpace !== code) planMap[codeNoSpace] = item.planQty || 0;
+                                        if(codeNum !== code && codeNum !== codeNoSpace) planMap[codeNum] = item.planQty || 0;
+                                }
+                        });
+                        planDataCache[month] = planMap;
+                        return planMap;
+                } else {
+                        // 기타 오류 (403, 500 등)
+                        console.warn(`계획 데이터 로드 실패 (${month}): HTTP ${res.status}`);
+                        planDataCache[month] = {};
+                        return {};
+                }
+        } catch(e) {
+                // 네트워크 오류 등 - 404가 아닌 경우만 로그 출력
+                if(e.message && !e.message.includes('404') && !e.message.includes('Not Found') && !e.message.includes('Failed to fetch')) {
+                        console.warn(`계획 데이터 로드 실패 (${month}):`, e);
+                }
+                planDataCache[month] = {};
+                return {};
+        }
+}
+
+async function loadPlanDataForComparison(month) {
+        const planMap = await loadPlanDataForMonth(month);
+        // processedData에 임시로 저장하여 getPlanQtyForMonth에서 사용
+        processedData.forEach(d => {
+                const code = String(d.code).trim();
+                const codeVariants = [code, code.replace(/\s+/g, ''), String(Number(code)) || code];
+                for(const variant of codeVariants) {
+                        if(planMap[variant] !== undefined) {
+                                d._tempPlanQty = planMap[variant];
+                                break;
+                        }
+                }
+        });
+        return planMap;
+}
+
+function getPlanQtyForMonth(code, month) {
+        const item = processedData.find(d => String(d.code).trim() === String(code).trim());
+        if(item && item._tempPlanQty !== undefined) return item._tempPlanQty;
+        return 0;
 }
 </script>
 </body>
