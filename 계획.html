@@ -2729,6 +2729,17 @@ async function handleSemiProductUpload(event) {
                 const headerRow = raw[0] || [];
                 const monthColumns = [];
                 
+                // 헤더에서 "평균 사용량 <<" 컬럼 찾기
+                let avgUsageColIdx = -1;
+                for(let i = 0; i < headerRow.length; i++) {
+                        const h = String(headerRow[i] || "").trim();
+                        if(h.includes("평균 사용량") && h.includes("<<")) {
+                                avgUsageColIdx = i;
+                                console.log(`[반제품 업로드] 평균 사용량 컬럼 발견: 인덱스 ${i}`);
+                                break;
+                        }
+                }
+                
                 // 먼저 헤더에서 "25년12월", "26년1월" 형식 찾기
                 for(let i = 0; i < headerRow.length; i++) {
                         const h = String(headerRow[i] || "");
@@ -2798,6 +2809,16 @@ async function handleSemiProductUpload(event) {
                         const totalInbound = Number(String(row[8] || "0").replace(/,/g, "")) || 0;
                         const currentStock = Number(String(row[9] || "0").replace(/,/g, "")) || 0;
                         if(!erp || !spec) return;
+                        
+                        // 평균 사용량을 파일에서 읽기 (E행, 인덱스 4 또는 "평균 사용량 <<" 컬럼)
+                        let avgUsage = 0;
+                        if(avgUsageColIdx >= 0) {
+                                avgUsage = Number(String(row[avgUsageColIdx] || "0").replace(/,/g, "")) || 0;
+                        } else {
+                                // 컬럼을 찾지 못한 경우 인덱스 4에서 읽기 (E행)
+                                avgUsage = Number(String(row[4] || "0").replace(/,/g, "")) || 0;
+                        }
+                        
                         const monthlyPlans = [];
                         const monthlyPlanDates = [];
                         
@@ -2814,27 +2835,39 @@ async function handleSemiProductUpload(event) {
                         const avgUsageFromHistory = usage > 0 ? usage / 12 : 0;
                         const recent3Months = monthlyPlans.slice(-3).filter(v => v > 0);
                         const avg3mPlan = recent3Months.length > 0 ? Math.round(recent3Months.reduce((a,b) => a+b, 0) / 3) : 0;
-                        let avgUsage = avgUsageFromHistory;
-                        if(avg3mUsage > 0) {
-                                if(avgUsageFromHistory > 0) {
-                                        avgUsage = Math.round((avgUsageFromHistory * 0.3) + (avg3mUsage * 0.7));
+                        
+                        // 파일에서 읽은 평균 사용량이 없으면 기존 계산 로직 사용
+                        if(avgUsage <= 0) {
+                                avgUsage = avgUsageFromHistory;
+                                if(avg3mUsage > 0) {
+                                        if(avgUsageFromHistory > 0) {
+                                                avgUsage = Math.round((avgUsageFromHistory * 0.3) + (avg3mUsage * 0.7));
+                                        } else {
+                                                avgUsage = avg3mUsage;
+                                        }
+                                } else if(avg3mPlan > 0) {
+                                        if(avgUsageFromHistory > 0) {
+                                                avgUsage = Math.round((avgUsageFromHistory * 0.4) + (avg3mPlan * 0.6));
+                                        } else {
+                                                avgUsage = avg3mPlan;
+                                        }
                                 } else {
-                                        avgUsage = avg3mUsage;
+                                        avgUsage = Math.round(avgUsageFromHistory);
                                 }
-                        } else if(avg3mPlan > 0) {
-                                if(avgUsageFromHistory > 0) {
-                                        avgUsage = Math.round((avgUsageFromHistory * 0.4) + (avg3mPlan * 0.6));
-                                } else {
-                                        avgUsage = avg3mPlan;
-                                }
-                        } else {
-                                avgUsage = Math.round(avgUsageFromHistory);
                         }
                         const semiCR = parseFloat(document.getElementById('cfg_semi_china')?.value) || 2.5;
                         const safety = avgUsage > 0 ? Math.round(avgUsage * semiCR) : 0;
                         const target = avgUsage > 0 ? Math.round(avgUsage * semiCR * 1.3) : 0;
                         const codeKey = String(erp).trim();
                         const codeOriginal = String(erp);
+                        
+                        // 엑셀에서 읽은 평균 사용량을 semiAvgUsageOverrides에 저장 (우선 적용)
+                        if(avgUsage > 0) {
+                                semiAvgUsageOverrides.set(codeKey, avgUsage);
+                                semiAvgUsageOverrides.set(codeOriginal, avgUsage);
+                                semiAvgUsageOverrides.set(String(erp).trim(), avgUsage);
+                        }
+                        
                         let unit = 10;
                         if(semiUnitOverrides.has(codeKey)) unit = semiUnitOverrides.get(codeKey);
                         else if(semiUnitOverrides.has(codeOriginal)) unit = semiUnitOverrides.get(codeOriginal);
@@ -2861,6 +2894,10 @@ async function handleSemiProductUpload(event) {
                                 plan_B: 0
                         });
                 });
+                
+                // 엑셀에서 읽은 평균 사용량을 localStorage에 저장
+                localStorage.setItem('jemini_semi_avg_usage_overrides', JSON.stringify([...semiAvgUsageOverrides]));
+                
                 updateSemiTypeFilter();
                 await saveToDB("semi", semiProductData);
                 if(document.getElementById('status_semi')) document.getElementById('status_semi').style.display = 'inline';
@@ -3042,6 +3079,56 @@ async function calculateSemiProduct() {
                                 }
                         }
                         d.pending = pend;
+                        
+                        // 최근 3개월 평균 사용량 자동 계산
+                        // 현시점(planMonth) 기준으로 3개월 전부터 현재까지의 사용량 계산
+                        // 예: 26년 1월인 경우는 25년 10, 11, 12월의 평균 사용량
+                        // 계산: 3개월 전 재고(baseStock) + 3개월간 기입고 - 현재 재고(currentStock) = 3개월간 사용량
+                        let calculatedAvg3mUsage = 0;
+                        if(d.baseStock !== undefined && d.stock !== undefined && d.monthlyPlans && d.monthlyPlanDates) {
+                                // 3개월 전 시점 계산
+                                const threeMonthsAgoDate = new Date(planDate);
+                                threeMonthsAgoDate.setMonth(threeMonthsAgoDate.getMonth() - 3);
+                                const threeMonthsAgoStr = `${threeMonthsAgoDate.getFullYear()}-${String(threeMonthsAgoDate.getMonth() + 1).padStart(2, '0')}`;
+                                
+                                // 3개월 전 재고 (baseStock은 3개월 평균기초재고이므로 사용)
+                                const stock3MonthsAgo = d.baseStock || 0;
+                                
+                                // 3개월간 기입고 합계 계산 (3개월 전 다음 달부터 현재 달까지)
+                                let inbound3Months = 0;
+                                if(d.monthlyPlans.length === d.monthlyPlanDates.length) {
+                                        const startCalcDate = new Date(threeMonthsAgoDate);
+                                        startCalcDate.setMonth(startCalcDate.getMonth() + 1); // 3개월 전 다음 달부터
+                                        const endCalcDate = new Date(planDate);
+                                        
+                                        for(let i = 0; i < d.monthlyPlans.length; i++) {
+                                                const planMonthStr = String(d.monthlyPlanDates[i] || "").trim();
+                                                if(planMonthStr && planMonthStr.length === 7) {
+                                                        const planMonthDate = new Date(planMonthStr + "-01");
+                                                        if(planMonthDate >= startCalcDate && planMonthDate <= endCalcDate) {
+                                                                inbound3Months += (Number(d.monthlyPlans[i]) || 0);
+                                                        }
+                                                }
+                                        }
+                                }
+                                
+                                // 현재 재고
+                                const currentStock = d.stock || 0;
+                                
+                                // 3개월간 사용량 = 3개월 전 재고 + 3개월간 기입고 - 현재 재고
+                                const usage3Months = stock3MonthsAgo + inbound3Months - currentStock;
+                                
+                                // 월평균 사용량
+                                if(usage3Months > 0) {
+                                        calculatedAvg3mUsage = Math.round(usage3Months / 3);
+                                }
+                        }
+                        
+                        // 계산된 값이 있으면 사용, 없으면 기존 값 유지
+                        if(calculatedAvg3mUsage > 0) {
+                                d.avg3mUsage = calculatedAvg3mUsage;
+                        }
+                        
                         let effectiveAvgUsage = d.avgUsage || 0;
                         if(semiAvgUsageOverrides.has(codeKey)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeKey);
                         else if(semiAvgUsageOverrides.has(codeOriginal)) effectiveAvgUsage = semiAvgUsageOverrides.get(codeOriginal);
