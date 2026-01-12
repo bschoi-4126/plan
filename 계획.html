@@ -1594,11 +1594,25 @@ async function saveToGithub() {
                 const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
                 
                 // 저장할 데이터 준비: 기입고(pending) 우선, 없으면 화면의 계획 사용
+                // 필터링 로직은 renderMonthly와 동일하게 적용
                 const target = processedData.filter(d => {
-                        if (d.wp === "기타") return false;
-                        if (wpF !== "ALL" && d.wp !== wpF) return false;
-                        if (d.wp.includes("중국")) return true;
-                        return d.category === "계획";
+                        if(!d || d.wp === "기타") return false;
+                        // 필터에 따라 필터링 (renderMonthly와 동일한 로직)
+                        if(wpF === "CHINA") {
+                                // 중국생산만 저장
+                                if(!d.wp || !d.wp.includes("중국")) return false;
+                        } else if(wpF === "NO_CHINA") {
+                                // 중국생산 제외만 저장
+                                if(!d.wp || d.wp.includes("중국") || d.category !== "계획") return false;
+                        } else if(wpF !== "ALL") {
+                                // 특정 작업장만 저장
+                                if(d.wp !== wpF) return false;
+                        } else {
+                                // ALL일 때는 중국생산 또는 계획 카테고리만 저장
+                                if(d.wp && d.wp.includes("중국")) return true;
+                                if(d.category !== "계획") return false;
+                        }
+                        return true;
                 }).map(d => {
                         // 기입고(pending) 우선 확인 - 화면에 표시된 기입고 값 사용
                         let planQty = 0;
@@ -1614,11 +1628,110 @@ async function saveToGithub() {
                 });
                 
                 if(target.length === 0) return alert("저장할 데이터가 없습니다.");
-                const content = btoa(unescape(encodeURIComponent(JSON.stringify(target))));
+                
+                // 기존 저장된 데이터 로드 (필터링되지 않은 다른 데이터 유지)
+                let existingData = [];
+                try {
+                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}.json`, { headers: { Authorization: `token ${t}` } });
+                        if(res.ok) {
+                                const data = await res.json();
+                                existingData = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                        }
+                } catch(e) {
+                        // 파일이 없으면 빈 배열로 시작 (정상)
+                }
+                
+                // 필터에 따라 저장할 데이터 결정
+                let finalData = [];
+                
+                if(wpF === "CHINA") {
+                        // 중국생산 필터: 중국생산 항목만 저장 (다른 항목은 기존 데이터에서 제거)
+                        // 기존 데이터에서 중국생산이 아닌 항목은 제외
+                        const existingChinaData = existingData.filter(item => {
+                                if(!item.code) return false;
+                                // 기존 데이터에서 중국생산인지 확인하기 위해 processedData에서 찾기
+                                const existingItem = processedData.find(d => String(d.code).trim() === String(item.code).trim());
+                                return existingItem && existingItem.wp && existingItem.wp.includes("중국");
+                        });
+                        
+                        // 새로 저장할 중국생산 데이터와 기존 중국생산 데이터를 병합
+                        const chinaMap = new Map();
+                        existingChinaData.forEach(item => {
+                                if(item.code) {
+                                        const codeKey = String(item.code).trim();
+                                        chinaMap.set(codeKey, item.planQty || 0);
+                                }
+                        });
+                        target.forEach(item => {
+                                if(item.code) {
+                                        const codeKey = String(item.code).trim();
+                                        chinaMap.set(codeKey, item.planQty || 0);
+                                }
+                        });
+                        finalData = Array.from(chinaMap.entries()).map(([code, planQty]) => ({ code, planQty }));
+                        
+                } else if(wpF === "NO_CHINA") {
+                        // 중국생산 제외 필터: 중국생산 제외 항목만 저장 (다른 항목은 기존 데이터에서 제거)
+                        // 기존 데이터에서 중국생산 제외가 아닌 항목은 제외
+                        const existingNoChinaData = existingData.filter(item => {
+                                if(!item.code) return false;
+                                // 기존 데이터에서 중국생산 제외인지 확인하기 위해 processedData에서 찾기
+                                const existingItem = processedData.find(d => String(d.code).trim() === String(item.code).trim());
+                                return existingItem && existingItem.wp && !existingItem.wp.includes("중국") && existingItem.category === "계획";
+                        });
+                        
+                        // 새로 저장할 중국생산 제외 데이터와 기존 중국생산 제외 데이터를 병합
+                        const noChinaMap = new Map();
+                        existingNoChinaData.forEach(item => {
+                                if(item.code) {
+                                        const codeKey = String(item.code).trim();
+                                        noChinaMap.set(codeKey, item.planQty || 0);
+                                }
+                        });
+                        target.forEach(item => {
+                                if(item.code) {
+                                        const codeKey = String(item.code).trim();
+                                        noChinaMap.set(codeKey, item.planQty || 0);
+                                }
+                        });
+                        finalData = Array.from(noChinaMap.entries()).map(([code, planQty]) => ({ code, planQty }));
+                        
+                } else if(wpF !== "ALL") {
+                        // 특정 작업장 필터: 해당 작업장 항목만 저장 (다른 항목은 기존 데이터에서 제거)
+                        // 기존 데이터에서 해당 작업장이 아닌 항목은 제외
+                        const existingWpData = existingData.filter(item => {
+                                if(!item.code) return false;
+                                // 기존 데이터에서 해당 작업장인지 확인하기 위해 processedData에서 찾기
+                                const existingItem = processedData.find(d => String(d.code).trim() === String(item.code).trim());
+                                return existingItem && existingItem.wp === wpF;
+                        });
+                        
+                        // 새로 저장할 작업장 데이터와 기존 작업장 데이터를 병합
+                        const wpMap = new Map();
+                        existingWpData.forEach(item => {
+                                if(item.code) {
+                                        const codeKey = String(item.code).trim();
+                                        wpMap.set(codeKey, item.planQty || 0);
+                                }
+                        });
+                        target.forEach(item => {
+                                if(item.code) {
+                                        const codeKey = String(item.code).trim();
+                                        wpMap.set(codeKey, item.planQty || 0);
+                                }
+                        });
+                        finalData = Array.from(wpMap.entries()).map(([code, planQty]) => ({ code, planQty }));
+                        
+                } else {
+                        // ALL 필터: 모든 항목 저장 (기존 데이터 전체 교체)
+                        finalData = target;
+                }
+                
+                const content = btoa(unescape(encodeURIComponent(JSON.stringify(finalData))));
                 const path = `data/plan_${m}.json`; let sha = "";
                 try { const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } }); if(res.ok) sha = (await res.json()).sha; } catch(e) {}
-                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 계획 저장 (기입고 우선)`, content, sha }) });
-                alert(`저장 완료! 기입고가 있으면 기입고를 우선 저장했습니다.`);
+                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 계획 저장 (${wpF === "CHINA" ? "중국생산" : wpF === "NO_CHINA" ? "중국생산 제외" : wpF !== "ALL" ? wpF : "전체"} 필터 적용)`, content, sha }) });
+                alert(`저장 완료! (${wpF === "CHINA" ? "중국생산" : wpF === "NO_CHINA" ? "중국생산 제외" : wpF !== "ALL" ? wpF : "전체"} 필터 적용, 기입고 우선)`);
                 // 저장 후 기입고를 다시 계산하여 반영
                 setTimeout(async () => {
                         await reCalculate();
