@@ -886,8 +886,10 @@ async function renderMonthly() {
                         
                         // 완제품 최종계획 결정 로직:
                         // 1. 엑셀에서 읽은 해당월 계획 데이터가 있으면 우선 사용 (4번 업로드로 읽은 데이터)
-                        // 2. 엑셀 업로드가 있었는데 해당 품목이 엑셀에 없으면 GitHub 저장 데이터 → 계산값 순서로 확인
-                        // 3. 엑셀 업로드가 없었으면 GitHub 저장 데이터 → 계산값 순서로 확인 (기입고는 최종계획이 아님)
+                        // 2. 엑셀 업로드가 있었는데 해당 품목이 엑셀에 없으면 0 (엑셀에 없는 품목은 계획이 없음)
+                        // 3. 엑셀 업로드가 없었으면:
+                        //    - GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                        //    - GitHub에 저장된 계획이 없으면: 계산값 사용 (기입고는 최종계획이 아님)
                         let finalPlan = 0;
                         let foundInExcel = false;
                         let hasExcelUpload = false;
@@ -916,20 +918,25 @@ async function renderMonthly() {
                                                 }
                                         }
                                 }
-                        }
-                        
-                        // 엑셀에 해당 품목이 없거나 엑셀 업로드가 없었으면 GitHub 저장 데이터나 계산값 사용
-                        if(!foundInExcel) {
-                                // GitHub에 저장된 계획 확인
-                                for(const variant of codeVariants) {
-                                        if(savedPlanMap[variant] !== undefined && savedPlanMap[variant] > 0) {
-                                                finalPlan = savedPlanMap[variant];
-                                                break;
-                                        }
-                                }
+                                // 엑셀 업로드가 있었는데 해당 품목이 엑셀에 없으면 0으로 유지 (finalPlan은 이미 0)
+                        } else {
+                                // 엑셀 업로드가 없었으면 GitHub 저장 데이터나 계산값 사용
+                                // GitHub에 저장된 계획이 있는지 확인 (빈 객체가 아닌지 확인)
+                                const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
                                 
-                                // 저장된 계획이 없으면 프로그램 계산값 사용 (기입고는 최종계획이 아님)
-                                if(finalPlan === 0) {
+                                if(hasSavedPlan) {
+                                        // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                                        let foundSavedPlan = false;
+                                        for(const variant of codeVariants) {
+                                                if(savedPlanMap[variant] !== undefined) {
+                                                        finalPlan = savedPlanMap[variant];
+                                                        foundSavedPlan = true;
+                                                        break;
+                                                }
+                                        }
+                                        // 저장된 계획에 해당 품목이 없으면 0으로 유지 (finalPlan은 이미 0)
+                                } else {
+                                        // GitHub에 저장된 계획이 없으면 프로그램 계산값 사용 (기입고는 최종계획이 아님)
                                         finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                 }
                         }
@@ -3559,8 +3566,10 @@ async function renderSemiMonthly() {
                 f.forEach(d => {
                         // 반제품 최종계획 결정 로직:
                         // 1. 엑셀에서 읽은 해당월 계획 데이터가 있으면 우선 사용 (5번 업로드로 읽은 데이터)
-                        // 2. 엑셀 업로드가 있었는데 해당 월의 데이터가 없으면 GitHub 저장 데이터 → 계산값 순서로 확인
-                        // 3. 엑셀 업로드가 없었으면 GitHub 저장 데이터 → 계산값 순서로 확인
+                        // 2. 엑셀 업로드가 있었는데 해당 월의 데이터가 없으면 0 (엑셀에 없는 품목은 계획이 없음)
+                        // 3. 엑셀 업로드가 없었으면:
+                        //    - GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                        //    - GitHub에 저장된 계획이 없으면: 계산값 사용
                         let finalPlan = 0;
                         const codeKey = String(d.code || "").trim();
                         let foundInExcel = false;
@@ -3583,15 +3592,20 @@ async function renderSemiMonthly() {
                                                 }
                                         }
                                 }
-                        }
-                        
-                        // 엑셀에 해당 월 데이터가 없으면 GitHub 저장 데이터나 계산값 사용
-                        if(!foundInExcel) {
-                                // GitHub에 저장된 계획 확인
-                                if(savedPlanMap[codeKey] !== undefined && savedPlanMap[codeKey] > 0) {
-                                        finalPlan = savedPlanMap[codeKey];
+                                // 엑셀 업로드가 있었는데 해당 월 데이터가 없으면 0으로 유지 (finalPlan은 이미 0)
+                        } else {
+                                // 엑셀 업로드가 없었으면 GitHub 저장 데이터나 계산값 사용
+                                // GitHub에 저장된 계획이 있는지 확인 (빈 객체가 아닌지 확인)
+                                const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
+                                
+                                if(hasSavedPlan) {
+                                        // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                                        if(savedPlanMap[codeKey] !== undefined) {
+                                                finalPlan = savedPlanMap[codeKey];
+                                        }
+                                        // 저장된 계획에 해당 품목이 없으면 0으로 유지 (finalPlan은 이미 0)
                                 } else {
-                                        // 저장된 계획이 없으면 계산된 계획 사용
+                                        // GitHub에 저장된 계획이 없으면 계산된 계획 사용
                                         finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                 }
                         }
@@ -3605,8 +3619,10 @@ async function renderSemiMonthly() {
                 f.slice(0, displayLimits.semiMonthly).forEach(d => {
                         // 반제품 최종계획 결정 로직:
                         // 1. 엑셀에서 읽은 해당월 계획 데이터가 있으면 우선 사용 (5번 업로드로 읽은 데이터)
-                        // 2. 엑셀 업로드가 있었는데 해당 월의 데이터가 없으면 GitHub 저장 데이터 → 계산값 순서로 확인
-                        // 3. 엑셀 업로드가 없었으면 GitHub 저장 데이터 → 계산값 순서로 확인
+                        // 2. 엑셀 업로드가 있었는데 해당 월의 데이터가 없으면 0 (엑셀에 없는 품목은 계획이 없음)
+                        // 3. 엑셀 업로드가 없었으면:
+                        //    - GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                        //    - GitHub에 저장된 계획이 없으면: 계산값 사용
                         let finalPlan = 0;
                         const codeKey = String(d.code || "").trim();
                         let foundInExcel = false;
@@ -3629,15 +3645,20 @@ async function renderSemiMonthly() {
                                                 }
                                         }
                                 }
-                        }
-                        
-                        // 엑셀에 해당 월 데이터가 없으면 GitHub 저장 데이터나 계산값 사용
-                        if(!foundInExcel) {
-                                // GitHub에 저장된 계획 확인
-                                if(savedPlanMap[codeKey] !== undefined && savedPlanMap[codeKey] > 0) {
-                                        finalPlan = savedPlanMap[codeKey];
+                                // 엑셀 업로드가 있었는데 해당 월 데이터가 없으면 0으로 유지 (finalPlan은 이미 0)
+                        } else {
+                                // 엑셀 업로드가 없었으면 GitHub 저장 데이터나 계산값 사용
+                                // GitHub에 저장된 계획이 있는지 확인 (빈 객체가 아닌지 확인)
+                                const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
+                                
+                                if(hasSavedPlan) {
+                                        // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                                        if(savedPlanMap[codeKey] !== undefined) {
+                                                finalPlan = savedPlanMap[codeKey];
+                                        }
+                                        // 저장된 계획에 해당 품목이 없으면 0으로 유지 (finalPlan은 이미 0)
                                 } else {
-                                        // 저장된 계획이 없으면 계산된 계획 사용
+                                        // GitHub에 저장된 계획이 없으면 계산된 계획 사용
                                         finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                 }
                         }
