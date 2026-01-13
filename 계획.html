@@ -547,6 +547,9 @@ async function reCalculate() {
                 const planMonth = document.getElementById('plan_month')?.value || new Date().toISOString().substring(0, 7);
                 const tl = await getTimelineGap(refMonth, planMonth);
                 
+                // 전역 변수에 저장하여 renderMonthly에서 재사용 (성능 최적화)
+                window.currentTimelineGap = { refMonth, planMonth, tl };
+                
                 // 현재 계획월의 저장된 계획 데이터를 자동으로 로드 (일괄 업로드로 저장된 데이터 포함)
                 try {
                         const t = document.getElementById('gh_token')?.value;
@@ -710,6 +713,12 @@ async function reCalculate() {
                                 console.log(`[완제품 기입고] 매칭 성공: ${code} -> ${pend}`);
                         }
                         if(pend > 0) matchedCount++;
+                        
+                        // 디버깅: 기입고가 0인 경우 로그 출력 (처음 5개만)
+                        if(pend === 0 && matchedCount === 0 && Object.keys(tl.pendingMap || {}).length > 0) {
+                                const sampleKeys = Object.keys(tl.pendingMap).slice(0, 3);
+                                console.log(`[기입고 디버깅] ${code}: pendingMap 크기=${Object.keys(tl.pendingMap).length}, 샘플 키=${sampleKeys.join(', ')}`);
+                        }
                         // 저장된 계획 데이터가 있으면 사용, 없으면 계산된 값 사용
                         let savedPlanA = null, savedPlanB = null;
                         if(window.tempLoadedPlan && window.tempLoadedPlan.size > 0) {
@@ -832,6 +841,13 @@ async function renderMonthly() {
                 // 현재 선택된 월의 저장된 계획 로드 (기입고 우선)
                 const planMonth = document.getElementById('plan_month')?.value;
                 let savedPlanMap = {};
+                let prevMonthPlanMap = {}; // 이전 달 계획 (2개월치 계산용)
+                let prevMonth = null;
+                let nextMonth = null;
+                let prevTl = null;
+                let nextTl = null;
+                const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+                
                 if(planMonth) {
                         // 먼저 캐시 확인 (업로드 직후 데이터가 캐시에 있을 수 있음)
                         if(planDataCache[planMonth]) {
@@ -842,6 +858,26 @@ async function renderMonthly() {
                                 savedPlanMap = await loadPlanDataForMonth(planMonth, false);
                                 console.log(`[계획 수립] ${planMonth} GitHub에서 로드: ${Object.keys(savedPlanMap).length}개 품목`);
                         }
+                        
+                        // 이전 달 계획도 미리 로드 (2개월치 계산용, 성능 최적화)
+                        const planDate = new Date(planMonth + "-01");
+                        if(planDate.getMonth() > 0) {
+                                const prevMonthDate = new Date(planDate);
+                                prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+                                prevMonth = prevMonthDate.toISOString().substring(0, 7);
+                                if(planDataCache[prevMonth]) {
+                                        prevMonthPlanMap = planDataCache[prevMonth];
+                                } else {
+                                        prevMonthPlanMap = await loadPlanDataForMonth(prevMonth, false);
+                                }
+                        }
+                        
+                        // 2개월치 평균 계획 캐시 초기화 (월별로 저장)
+                        if(!window.twoMonthAvgPlanCache) window.twoMonthAvgPlanCache = {};
+                        
+                        // 다음 달과 이전 달 TimelineGap은 2개월치 계산이 필요한 경우에만 계산
+                        // (중국생산 완제품 또는 반제품인 경우에만 사용)
+                        // 성능을 위해 조건부로만 계산하도록 변경
                         
                         // reCalculate에서 로드한 tempLoadedPlan 데이터도 함께 확인
                         if(window.tempLoadedPlan && window.tempLoadedPlan.size > 0) {
@@ -880,7 +916,7 @@ async function renderMonthly() {
                 
                 // 저장된 계획이 있으면 우선 사용, 없으면 프로그램 계산값 사용
                 let tQ = 0, tA = 0, tStockA = 0; 
-                f.forEach(d => {
+                for(const d of f) {
                         const code = String(d.code).trim();
                         const codeVariants = [code, code.replace(/\s+/g, ''), String(Number(code)) || code];
                         
@@ -918,9 +954,32 @@ async function renderMonthly() {
                                                 }
                                         }
                                 }
-                                // 엑셀 업로드가 있었는데 해당 품목이 엑셀에 없으면 0으로 유지 (finalPlan은 이미 0)
+                                // 엑셀 업로드가 있었는데 해당 월 데이터가 없으면 GitHub 저장 데이터 확인, 없으면 0
+                        if(!foundInExcel) {
+                                        // GitHub에 저장된 계획이 있는지 확인
+                                        const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
+                                        
+                                        if(hasSavedPlan) {
+                                                // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                                                let foundSavedPlan = false;
+                                for(const variant of codeVariants) {
+                                                        if(savedPlanMap[variant] !== undefined) {
+                                                finalPlan = savedPlanMap[variant];
+                                                                foundSavedPlan = true;
+                                                break;
+                                        }
+                                }
+                                                // 저장된 계획에 없으면 0 (엑셀에도 없고 GitHub에도 없으면 계획이 없는 것)
+                                                if(!foundSavedPlan) {
+                                                        finalPlan = 0;
+                                                }
+                                        } else {
+                                                // GitHub에 저장된 계획이 없으면 0 (엑셀에도 없고 GitHub에도 없으면 계획이 없는 것)
+                                                finalPlan = 0;
+                                        }
+                                }
                         } else {
-                                // 엑셀 업로드가 없었으면 GitHub 저장 데이터나 계산값 사용
+                                // 엑셀 업로드가 없었으면 GitHub 저장 데이터 확인, 없으면 계산값 사용
                                 // GitHub에 저장된 계획이 있는지 확인 (빈 객체가 아닌지 확인)
                                 const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
                                 
@@ -934,10 +993,208 @@ async function renderMonthly() {
                                                         break;
                                                 }
                                         }
-                                        // 저장된 계획에 해당 품목이 없으면 0으로 유지 (finalPlan은 이미 0)
+                                        // 저장된 계획에 없으면 0 (GitHub에 저장된 계획이 있지만 해당 품목이 없으면 계획이 없는 것)
+                                        if(!foundSavedPlan) {
+                                        finalPlan = 0;
+                                        }
                                 } else {
                                         // GitHub에 저장된 계획이 없으면 프로그램 계산값 사용 (기입고는 최종계획이 아님)
+                                        const isChinaProduct = d.wp && d.wp.includes("중국");
                                         finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                                        
+                                        // 중국생산 완제품인 경우 2개월치 동일 수량 계산
+                                        // 단, 저장된 계획이 있으면 2개월치 계산 적용 안 함
+                                        // 단, 엑셀에서 읽은 해당 월 데이터가 있으면 2개월치 계산 적용 안 함
+                                        const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
+                                        let foundSavedPlan = false;
+                                        if(hasSavedPlan) {
+                                                for(const variant of codeVariants) {
+                                                        if(savedPlanMap[variant] !== undefined) {
+                                                                foundSavedPlan = true;
+                                                                break;
+                                                        }
+                                                }
+                                        }
+                                        
+                                        if(isChinaProduct && finalPlan > 0 && planMonth && !foundInExcel && !foundSavedPlan) {
+                                                        try {
+                                                        const sVal = (d.category === "주문" ? 0 : d.stock);
+                                                        const target = (currentLogicMode === 'V20' ? d.target_A : d.target_B);
+                                                        
+                                                        // 현재 달 기입고 (이미 계산됨) - 이건 1~4월까지의 계획 합계
+                                                        const currentPend = d.pending || 0;
+                                                        
+                                                        // 이전 달 계획 가져오기 (6월 선택 시 5월 계획) - 미리 로드된 데이터 사용
+                                                        let prevMonthPlan = 0;
+                                                        const codeVariants = [String(d.code).trim(), String(d.code).replace(/\s+/g, ''), String(Number(d.code)) || String(d.code)];
+                                                        for(const variant of codeVariants) {
+                                                                if(prevMonthPlanMap[variant] !== undefined) {
+                                                                        prevMonthPlan = prevMonthPlanMap[variant];
+                                                                        break;
+                                                                }
+                                                        }
+                                                        // 저장된 계획이 없으면 계산된 값 사용
+                                                        if(prevMonthPlan === 0 && prevMonth) {
+                                                                // 필요시에만 getTimelineGap 호출
+                                                                if(!prevTl) {
+                                                                        const prevCacheKey = `tl_${refMonth}_${prevMonth}`;
+                                                                        if(window.timelineGapCache && window.timelineGapCache[prevCacheKey]) {
+                                                                                prevTl = window.timelineGapCache[prevCacheKey];
+                                                                        } else {
+                                                                                prevTl = await getTimelineGap(refMonth, prevMonth);
+                                                                                if(!window.timelineGapCache) window.timelineGapCache = {};
+                                                                                window.timelineGapCache[prevCacheKey] = prevTl;
+                                                                        }
+                                                                }
+                                                                let prevBurn = 0;
+                                                                if(prevTl && prevTl.gap >= 0) {
+                                                                        const refDate = new Date(refMonth + "-01");
+                                                                        const prevPlanDate = new Date(prevMonth + "-01");
+                                                                        let currentDate = new Date(refDate);
+                                                                        let monthsCount = 0;
+                                                                        let totalActualSales = 0;
+                                                                        while(currentDate < prevPlanDate) {
+                                                                                monthsCount++;
+                                                                                const year = currentDate.getFullYear().toString();
+                                                                                const month = currentDate.getMonth();
+                                                                                if(rawData.salesByYear[year] && rawData.salesByYear[year][d.code]) {
+                                                                                        totalActualSales += rawData.salesByYear[year][d.code][month] || 0;
+                                                                                }
+                                                                                currentDate.setMonth(currentDate.getMonth() + 1);
+                                                                        }
+                                                                        prevBurn = totalActualSales > 0 ? totalActualSales : (d.avg * monthsCount);
+                                                                }
+                                                                let prevPend = 0;
+                                                                if(prevTl && prevTl.pendingMap && Object.keys(prevTl.pendingMap).length > 0) {
+                                                                        for(const variant of codeVariants) {
+                                                                                if(prevTl.pendingMap[variant] !== undefined) {
+                                                                                        prevPend = prevTl.pendingMap[variant];
+                                                                                        break;
+                                                                                }
+                                                                        }
+                                                                }
+                                                                const rawPrev = (target + prevBurn) - (sVal + prevPend);
+                                                                prevMonthPlan = (rawPrev < d.unit) ? 0 : Math.floor(rawPrev / d.unit) * d.unit;
+                                                        }
+                                                        
+                                                        // 다음 달 계산
+                                                        if(!nextMonth) {
+                                                                const planDate = new Date(planMonth + "-01");
+                                                                const nextMonthDate = new Date(planDate);
+                                                                nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+                                                                nextMonth = nextMonthDate.toISOString().substring(0, 7);
+                                                        }
+                                                        
+                                                        // 다음 달의 기입고는 현재 달까지의 기입고 + 현재 달의 계산된 계획으로 계산하므로
+                                                        // getTimelineGap을 호출할 필요가 없음 (404 에러 방지)
+                                                        // nextTl은 사용하지 않음
+                                                        
+                                                        // 반복 계산으로 5월과 6월 계획을 동일하게 만들기
+                                                        // 5월 계획 = f(6월 계획 포함 기입고), 6월 계획 = f(5월 계획 포함 기입고)
+                                                        // 두 방정식을 동시에 만족하는 값을 찾기 위해 반복 계산
+                                                        
+                                                        // 현재 달(5월) 소진 계산
+                                                        let currentBurn = 0;
+                                                        const refDate = new Date(refMonth + "-01");
+                                                        const currentPlanDate = new Date(planMonth + "-01");
+                                                        let currentDate = new Date(refDate);
+                                                        let currentMonthsCount = 0;
+                                                        let currentTotalActualSales = 0;
+                                                        while(currentDate < currentPlanDate) {
+                                                                currentMonthsCount++;
+                                                                const year = currentDate.getFullYear().toString();
+                                                                const month = currentDate.getMonth();
+                                                                if(rawData.salesByYear[year] && rawData.salesByYear[year][d.code]) {
+                                                                        currentTotalActualSales += rawData.salesByYear[year][d.code][month] || 0;
+                                                                }
+                                                                currentDate.setMonth(currentDate.getMonth() + 1);
+                                                        }
+                                                        currentBurn = currentTotalActualSales > 0 ? currentTotalActualSales : (d.avg * currentMonthsCount);
+                                                        
+                                                        // 다음 달(6월) 소진 계산 (nextTl이 없어도 계산 가능하도록)
+                                                        let nextBurn = 0;
+                                                        const nextPlanDate = new Date(nextMonth + "-01");
+                                                        currentDate = new Date(refDate);
+                                                        let monthsCount = 0;
+                                                        let totalActualSales = 0;
+                                                        while(currentDate < nextPlanDate) {
+                                                                monthsCount++;
+                                                                const year = currentDate.getFullYear().toString();
+                                                                const month = currentDate.getMonth();
+                                                                if(rawData.salesByYear[year] && rawData.salesByYear[year][d.code]) {
+                                                                        totalActualSales += rawData.salesByYear[year][d.code][month] || 0;
+                                                                }
+                                                                currentDate.setMonth(currentDate.getMonth() + 1);
+                                                        }
+                                                        nextBurn = totalActualSales > 0 ? totalActualSales : (d.avg * monthsCount);
+                                                        
+                                                        // 2개월치 동일 수량 계산: 단순히 한 번씩 계산하고 평균 적용
+                                                        // 1. 현재 월(5월) 계획 계산
+                                                        // 2. 다음 월(6월) 계획 계산 (5월 계산된 계획을 기입고에 포함)
+                                                        // 3. 두 값을 평균내서 두 달 모두에 적용
+                                                        
+                                                        // 캐시에서 이미 계산된 평균값이 있는지 확인
+                                                        if(!window.monthCalcCache) window.monthCalcCache = {};
+                                                        const currentMonthKey = `${d.code}_${planMonth}`;
+                                                        const cachedAvg = window.monthCalcCache[currentMonthKey];
+                                                        
+                                                        if(cachedAvg !== undefined) {
+                                                                // 캐시에 평균값이 있으면 그대로 사용
+                                                                finalPlan = cachedAvg;
+                                                                console.log(`[완제품 2개월치 계산] ${d.code}: 캐시에서 평균값 사용 ${planMonth}=${cachedAvg}`);
+                                                        } else {
+                                                                // 현재 월(5월) 계산값 계산
+                                                                const currentPendForCalc = currentPend;
+                                                                const rawCurrent = (target + currentBurn) - (sVal + currentPendForCalc);
+                                                                let currentPlan = (rawCurrent < d.unit) ? 0 : Math.floor(rawCurrent / d.unit) * d.unit;
+                                                                
+                                                                // 다음 월(6월) 계산값 계산 (5월 계산된 계획을 기입고에 포함)
+                                                                const nextPendForCalc = currentPend + currentPlan; // 5월 기입고 + 5월 계산된 계획
+                                                                const rawNext = (target + nextBurn) - (sVal + nextPendForCalc);
+                                                                let nextPlan = (rawNext < d.unit) ? 0 : Math.floor(rawNext / d.unit) * d.unit;
+                                                                
+                                                                // 다음 달 캐시 확인
+                                                                const nextMonthKey = `${d.code}_${nextMonth}`;
+                                                                const nextCachedAvg = window.monthCalcCache[nextMonthKey];
+                                                                
+                                                                // 이전 달 캐시도 확인 (6월 선택 시 5월 캐시 확인)
+                                                                let prevMonthKey = null;
+                                                                let prevCachedAvg = undefined;
+                                                                if(prevMonth) {
+                                                                        prevMonthKey = `${d.code}_${prevMonth}`;
+                                                                        prevCachedAvg = window.monthCalcCache[prevMonthKey];
+                                                                }
+                                                                
+                                                                if(nextCachedAvg !== undefined) {
+                                                                        // 다음 달 캐시에 평균값이 있으면 그 값을 사용
+                                                                        nextPlan = nextCachedAvg;
+                                                                        // 현재 달도 같은 평균값 사용
+                                                                        finalPlan = nextCachedAvg;
+                                                                        window.monthCalcCache[currentMonthKey] = nextCachedAvg;
+                                                                        console.log(`[완제품 2개월치 계산] ${d.code}: 다음 달 캐시에서 평균값 사용 ${planMonth}=${nextCachedAvg}, ${nextMonth}=${nextCachedAvg}`);
+                                                                } else if(prevCachedAvg !== undefined) {
+                                                                        // 이전 달 캐시에 평균값이 있으면 그 값을 사용
+                                                                        finalPlan = prevCachedAvg;
+                                                                        window.monthCalcCache[currentMonthKey] = prevCachedAvg;
+                                                                        window.monthCalcCache[nextMonthKey] = prevCachedAvg;
+                                                                        console.log(`[완제품 2개월치 계산] ${d.code}: 이전 달 캐시에서 평균값 사용 ${planMonth}=${prevCachedAvg}, ${nextMonth}=${prevCachedAvg}`);
+                                                                } else {
+                                                                        // 두 값을 평균내기
+                                                                        const avgPlan = Math.round((currentPlan + nextPlan) / 2);
+                                                                        const avgPlanRounded = (avgPlan < d.unit) ? 0 : Math.floor(avgPlan / d.unit) * d.unit;
+                                                                        
+                                                                        // 평균값을 두 달 모두에 적용
+                                                                        finalPlan = avgPlanRounded;
+                                                                        window.monthCalcCache[currentMonthKey] = avgPlanRounded;
+                                                                        window.monthCalcCache[nextMonthKey] = avgPlanRounded;
+                                                                        
+                                                                        console.log(`[완제품 2개월치 계산] ${d.code}: ${planMonth}=${currentPlan}, ${nextMonth}=${nextPlan}, 평균=${avgPlanRounded}`);
+                                                                }
+                                                        }
+                                                } catch(e) {
+                                                        console.warn(`[2개월치 계산] ${d.code} 오류:`, e);
+                                                }
+                                        }
                                 }
                         }
                         
@@ -952,7 +1209,7 @@ async function renderMonthly() {
                         tQ += finalPlan; 
                         tA += (finalPlan * d.price); 
                         tStockA += (d.stock * d.price);
-                });
+                }
                 
                 if(document.getElementById('m_sum_stock_amt_box')) document.getElementById('m_sum_stock_amt_box').innerText = `현재고: ${tStockA.toLocaleString()} 원`;
                 if(document.getElementById('m_sum_qty_box')) document.getElementById('m_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`; 
@@ -988,14 +1245,77 @@ async function renderMonthly() {
                                 const tr = document.createElement('tr'); 
                                 const p = d._displayPlan !== undefined ? d._displayPlan : (currentLogicMode==='V20'?d.plan_A:d.plan_B);
                                 const t = (currentLogicMode==='V20'?d.target_A:d.target_B), s = (currentLogicMode==='V20'?d.safety_A:d.safety_B);
-                                tr.innerHTML = `<td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem('${d.code}')">×</button></td><td>${d.code}</td><td>${d.name}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="fw-bold">${d.avg.toLocaleString()}</td><td class="bg-info text-white">${d.avg3m.toLocaleString()}</td><td class="bg-warning text-dark">${(d.avg3mPlan||0).toLocaleString()}</td><td class="bg-success text-white">${d.minS.toLocaleString()}</td><td class="bg-success text-white">${d.maxS.toLocaleString()}</td><td class="text-danger fw-bold">${d.burn.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateUnit('${d.code}', this.value)"></td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="table-primary"><input type="number" class="plan-input" value="${p}" onchange="updatePlanQty('${d.code}', this.value)"></td><td class="fw-bold">${(p*d.price).toLocaleString()}</td>`;
+                                const isChinaProduct = d.wp && d.wp.includes("중국");
+                                const copyButton = isChinaProduct && planMonth ? `<button class="btn btn-sm btn-outline-primary ms-1" onclick="copyPlanToNextMonth('${d.code}')" title="다음 달에 복사">📋</button>` : '';
+                                tr.innerHTML = `<td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem('${d.code}')">×</button></td><td>${d.code}</td><td>${d.name}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="fw-bold">${d.avg.toLocaleString()}</td><td class="bg-info text-white">${d.avg3m.toLocaleString()}</td><td class="bg-warning text-dark">${(d.avg3mPlan||0).toLocaleString()}</td><td class="bg-success text-white">${d.minS.toLocaleString()}</td><td class="bg-success text-white">${d.maxS.toLocaleString()}</td><td class="text-danger fw-bold">${d.burn.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateUnit('${d.code}', this.value)"></td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="table-primary"><input type="number" class="plan-input" value="${p}" onchange="updatePlanQty('${d.code}', this.value)">${copyButton}</td><td class="fw-bold">${(p*d.price).toLocaleString()}</td>`;
                                 body.appendChild(tr);
                         });
                 }
         } catch(e) { console.error("월별 계획 렌더링 오류:", e); }
 }
 
-function updatePlanQty(c, v) { const it = processedData.find(d => d.code === c); if(it) { if(currentLogicMode==='V20') it.plan_A = Number(v); else it.plan_B = Number(v); renderMonthly(); } }
+function updatePlanQty(c, v) { 
+        const it = processedData.find(d => d.code === c); 
+        if(it) { 
+                const newValue = Number(v);
+                if(currentLogicMode==='V20') it.plan_A = newValue; 
+                else it.plan_B = newValue; 
+                
+                // 중국생산 완제품인 경우, 다음 달에도 동일 값 적용
+                const isChinaProduct = it.wp && it.wp.includes("중국");
+                const planMonth = document.getElementById('plan_month')?.value;
+                if(isChinaProduct && planMonth) {
+                        const planDate = new Date(planMonth + "-01");
+                        const nextMonthDate = new Date(planDate);
+                        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+                        const nextMonth = nextMonthDate.toISOString().substring(0, 7);
+                        
+                        // 캐시에 다음 달 값도 동일하게 저장
+                        if(!window.monthCalcCache) window.monthCalcCache = {};
+                        const currentMonthKey = `${c}_${planMonth}`;
+                        const nextMonthKey = `${c}_${nextMonth}`;
+                        window.monthCalcCache[currentMonthKey] = newValue;
+                        window.monthCalcCache[nextMonthKey] = newValue;
+                        
+                        console.log(`[수동 입력] ${c}: ${planMonth}=${newValue}, ${nextMonth}에도 동일 값 적용`);
+                }
+                
+                renderMonthly(); 
+        } 
+}
+
+// 다음 달에 계획 복사 함수
+function copyPlanToNextMonth(code) {
+        const it = processedData.find(d => d.code === code);
+        if(!it) return;
+        
+        const planMonth = document.getElementById('plan_month')?.value;
+        if(!planMonth) {
+                alert("계획월을 선택해주세요.");
+                return;
+        }
+        
+        const currentPlan = currentLogicMode === 'V20' ? it.plan_A : it.plan_B;
+        if(currentPlan === 0) {
+                alert("현재 계획 수량이 0입니다. 먼저 계획을 입력해주세요.");
+                return;
+        }
+        
+        const planDate = new Date(planMonth + "-01");
+        const nextMonthDate = new Date(planDate);
+        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+        const nextMonth = nextMonthDate.toISOString().substring(0, 7);
+        
+        // 캐시에 다음 달 값 저장
+        if(!window.monthCalcCache) window.monthCalcCache = {};
+        const currentMonthKey = `${code}_${planMonth}`;
+        const nextMonthKey = `${code}_${nextMonth}`;
+        window.monthCalcCache[currentMonthKey] = currentPlan;
+        window.monthCalcCache[nextMonthKey] = currentPlan;
+        
+        alert(`${code}: ${planMonth} 계획(${currentPlan.toLocaleString()})을 ${nextMonth}에도 복사했습니다.\n\n${nextMonth}을 선택하면 동일한 값이 표시됩니다.`);
+        console.log(`[다음 달 복사] ${code}: ${planMonth}=${currentPlan} → ${nextMonth}=${currentPlan}`);
+}
 async function updateUnit(code, value) {
         try {
                 const unit = Number(value) || 10;
@@ -1480,7 +1800,7 @@ function showABCGradeDetails(grade) {
         }
 }
 
-async function getTimelineGap(r, p) { 
+async function getTimelineGap(r, p, isSemi = false) { 
         try {
                 const t = document.getElementById('gh_token')?.value; 
                 if(!t || !r || !p) {
@@ -1504,20 +1824,21 @@ async function getTimelineGap(r, p) {
                         }
                         const fetchPromises = monthsToLoad.map(async (m) => {
                                 try { 
-                                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}.json`, { headers: { Authorization: `token ${t}` } }); 
+                                        const fileName = isSemi ? `semi_plan_${m}.json` : `plan_${m}.json`;
+                                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/${fileName}`, { headers: { Authorization: `token ${t}` } }); 
                                         if(res.ok) { 
                                                 const j = await res.json(); 
                                                 const planData = JSON.parse(decodeURIComponent(escape(atob(j.content)))); 
                                                 return { month: m, data: planData };
                                         }
-                                        // 404는 파일이 없는 것이므로 정상 (조용히 처리)
-                                        if(res.status === 404) {
+                                        // 404, 403은 파일이 없거나 권한이 없는 것이므로 정상 (조용히 처리)
+                                        if(res.status === 404 || res.status === 403) {
                                                 return null;
                                         }
                                         return null;
                                 } catch(ex){
-                                        // 404 에러는 조용히 처리
-                                        if(ex.message && !ex.message.includes('404') && !ex.message.includes('Not Found')) {
+                                        // 404, 403 에러는 조용히 처리
+                                        if(ex.message && !ex.message.includes('404') && !ex.message.includes('403') && !ex.message.includes('Not Found') && !ex.message.includes('Forbidden')) {
                                                 console.warn(`기입고 계산 중 오류 (${m}):`, ex);
                                         }
                                         return null;
@@ -1574,7 +1895,18 @@ async function getTimelineGap(r, p) {
                         Object.keys(codeMap).forEach(code => {
                                 plan3mMap[code] = codeMap[code].reverse();
                         });
-                        console.log("[기입고] 계산 완료:", { gap, pendingCount: Object.keys(pm).length, totalLoadedItems: totalLoaded, monthsToLoad: monthsToLoad.length, sampleCodes: Object.keys(pm).slice(0, 5) });
+                        console.log("[기입고] 계산 완료:", { gap, pendingCount: Object.keys(pm).length, totalLoadedItems: totalLoaded, monthsToLoad: monthsToLoad.length, sampleCodes: Object.keys(pm).slice(0, 5), hasToken: !!t, refMonth: r, planMonth: p });
+                        if(Object.keys(pm).length === 0 && totalLoaded === 0 && monthsToLoad.length > 0) {
+                                console.warn("[기입고] 경고: 기입고 데이터가 없습니다. GitHub API 권한(403) 또는 데이터가 없는 것일 수 있습니다.", { monthsToLoad });
+                                // 403 에러가 발생했을 때, 캐시된 데이터가 있으면 사용
+                                if(window.timelineGapCache) {
+                                        const cacheKey = `tl_${r}_${p}`;
+                                        if(window.timelineGapCache[cacheKey] && Object.keys(window.timelineGapCache[cacheKey].pendingMap || {}).length > 0) {
+                                                console.log("[기입고] 캐시된 데이터 사용:", cacheKey);
+                                                return window.timelineGapCache[cacheKey];
+                                        }
+                                }
+                        }
                 } else {
                         console.warn("[기입고] gap이 0 이하입니다. 기입고를 계산할 수 없습니다.", { gap, refMonth: r, planMonth: p });
                 }
@@ -1631,7 +1963,16 @@ async function saveToGithub() {
                                 planQty = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
                         }
                         
-                        return { code: d.code, planQty: planQty };
+                        return { 
+                                code: d.code, 
+                                planQty: planQty,
+                                spec: d.spec || "",
+                                price: d.price || 0,
+                                stock: d.stock || 0,
+                                unit: d.unit || 10,
+                                avgUsage: d.avgUsage || 0,
+                                type: d.type || "ALL"
+                        };
                 });
                 
                 if(target.length === 0) return alert("저장할 데이터가 없습니다.");
@@ -2238,13 +2579,44 @@ async function uploadHtmlToGithub(htmlContent, token) {
 
 async function loadFromGithub() {
         try {
+                // 현재 활성화된 탭 확인
+                const semiMonthlyPane = document.getElementById('semi-monthly-pane');
+                const isSemiTabActive = semiMonthlyPane && semiMonthlyPane.classList.contains('active') && semiMonthlyPane.classList.contains('show');
+                
+                if(isSemiTabActive) {
+                        // 반제품 탭이 활성화되어 있으면 반제품 로드 함수 호출
+                        return await loadSemiFromGithub();
+                }
+                
+                // 완제품 탭이 활성화되어 있으면 완제품 로드
                 const t = document.getElementById('gh_token')?.value, m = document.getElementById('plan_month')?.value;
                 if(!t || !m) return alert("GitHub 정보 확인!");
-                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}.json`, { headers: { Authorization: `token ${t}` } });
+                
+                const url = `https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}.json`;
+                console.log("[저장된 계획 로드] 요청 URL:", url);
+                console.log("[저장된 계획 로드] 계획월:", m);
+                console.log("[저장된 계획 로드] 토큰 존재:", !!t);
+                
+                const res = await fetch(url, { headers: { Authorization: `token ${t}` } });
+                
+                console.log("[저장된 계획 로드] 응답 상태:", res.status, res.statusText);
+                
                 if(res.ok) {
                         const data = await res.json();
+                        console.log("[저장된 계획 로드] 데이터 크기:", data.size, "바이트");
                         const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-                        loaded.forEach(ld => { const target = processedData.find(pd => pd.code === ld.code); if(target) { if(currentLogicMode === 'V20') target.plan_A = ld.planQty; else target.plan_B = ld.planQty; } });
+                        console.log("[저장된 계획 로드] 로드된 항목 수:", loaded.length);
+                        
+                        let loadedCount = 0;
+                        loaded.forEach(ld => { 
+                                const target = processedData.find(pd => pd.code === ld.code); 
+                                if(target) { 
+                                        if(currentLogicMode === 'V20') target.plan_A = ld.planQty; 
+                                        else target.plan_B = ld.planQty; 
+                                        loadedCount++;
+                                } 
+                        });
+                        
                         renderMonthly(); 
                         // 포장단위 설정도 함께 로드
                         try {
@@ -2252,13 +2624,22 @@ async function loadFromGithub() {
                         } catch(e) {
                                 console.error("포장단위 로드 오류:", e);
                         }
-                        alert("기존 계획 로드 완료!");
+                        alert(`기존 계획 로드 완료! (${loadedCount}개 항목)`);
                 } else {
-                        alert("저장된 데이터가 없습니다.");
+                        const errorText = await res.text().catch(() => "");
+                        console.error("[저장된 계획 로드] 오류 응답:", res.status, errorText);
+                        
+                        if(res.status === 403) {
+                                alert(`GitHub API 권한 오류 (403)가 발생했습니다.\n토큰 권한을 확인해주세요.\n\nURL: ${url}`);
+                        } else if(res.status === 404) {
+                                alert(`저장된 데이터가 없습니다.\n\n계획월: ${m}\n파일 경로: data/plan_${m}.json\n\nGitHub 저장소에 해당 파일이 존재하는지 확인해주세요.`);
+                        } else {
+                                alert(`데이터 로드 실패: HTTP ${res.status}\n\n${errorText.substring(0, 200)}`);
+                        }
                 }
         } catch(e) { 
-                console.error("로드 함수 오류:", e); 
-                alert("로드 중 오류가 발생했습니다."); 
+                console.error("[저장된 계획 로드] 예외 발생:", e); 
+                alert(`로드 중 오류가 발생했습니다.\n\n${e.message || e}`); 
         }
 }
 
@@ -3286,20 +3667,9 @@ async function calculateSemiProduct() {
                         console.error("날짜 파싱 오류:", refMonth, planMonth);
                         return;
                 }
-                const refYear = refDate.getFullYear();
-                const refMonthIdx = refDate.getMonth();
-                const planYear = planDate.getFullYear();
-                const planMonthIdx = planDate.getMonth();
-                // 실재고 기준월의 2개월 전부터 계획월까지의 모든 기입고를 합산
-                // 예: 실재고 기준월이 2026-01이면, 2025-11부터 계획월까지 합산
-                let startYear = refYear;
-                let startMonth = refMonthIdx - 2;
-                if(startMonth < 0) {
-                        startYear = refYear - 1;
-                        startMonth = 12 + startMonth;
-                }
-                const startMonthStr = `${startYear}-${String(startMonth + 1).padStart(2, '0')}`;
-                const endMonthStr = `${planYear}-${String(planMonthIdx + 1).padStart(2, '0')}`;
+                // 반제품 기입고 계산: GitHub에 저장된 계획 데이터 사용
+                const semiTl = await getTimelineGap(refMonth, planMonth, true); // true = 반제품용
+                
                 semiProductData.forEach(d => {
                         const codeKey = String(d.code || "").trim();
                         const codeOriginal = String(d.code || "");
@@ -3307,28 +3677,42 @@ async function calculateSemiProduct() {
                         else if(semiUnitOverrides.has(codeOriginal)) d.unit = semiUnitOverrides.get(codeOriginal);
                         else if(semiUnitOverrides.has(String(d.code || "").trim())) d.unit = semiUnitOverrides.get(String(d.code || "").trim());
                         else if(!d.unit) d.unit = 10;
+                        
+                        // GitHub에서 로드한 기입고 데이터 사용
                         let pend = 0;
-                        if(d.monthlyPlans && d.monthlyPlanDates && Array.isArray(d.monthlyPlans) && Array.isArray(d.monthlyPlanDates) && d.monthlyPlans.length > 0 && d.monthlyPlanDates.length > 0) {
-                                const minLen = Math.min(d.monthlyPlans.length, d.monthlyPlanDates.length);
-                                for(let idx = 0; idx < minLen; idx++) {
-                                        const planQty = Number(d.monthlyPlans[idx]) || 0;
-                                        const planMonthStr = String(d.monthlyPlanDates[idx] || "").trim();
-                                        if(planMonthStr && planMonthStr.length === 7 && planQty > 0) {
-                                                // 실재고 기준월 다음 달부터 계획월까지 포함
-                                                if(planMonthStr >= startMonthStr && planMonthStr <= endMonthStr) {
-                                                        pend += planQty;
-                                                }
+                        if(semiTl.pendingMap && Object.keys(semiTl.pendingMap).length > 0) {
+                                // 먼저 직접 매칭 시도
+                                if(semiTl.pendingMap[codeKey] !== undefined) pend = semiTl.pendingMap[codeKey];
+                                else if(semiTl.pendingMap[codeOriginal] !== undefined) pend = semiTl.pendingMap[codeOriginal];
+                                
+                                // 직접 매칭 실패 시 변형 매칭 시도
+                                if(pend === 0) {
+                                        const codeNum = String(Number(codeKey)) || codeKey;
+                                        const codeNoSpace = codeKey.replace(/\s+/g, '');
+                                        const codeVariants = [codeKey, codeOriginal, codeNum, codeNoSpace];
+                                        
+                                        for(const variant of codeVariants) {
+                                                if(variant && semiTl.pendingMap[variant] !== undefined && semiTl.pendingMap[variant] > 0) {
+                                                        pend = semiTl.pendingMap[variant];
+                                                        break;
                                         }
                                 }
-                                if(pend === 0 && d.monthlyPlans.some(p => p > 0)) {
-                                        const totalPlan = d.monthlyPlans.reduce((a, b) => a + b, 0);
-                                        if(totalPlan > 100) {
-                                                console.warn(`[반제품 기입고 경고] ${d.code}: 계산된 기입고가 0입니다. (총 계획량: ${totalPlan})`, {
-                                                        monthlyPlans: d.monthlyPlans,
-                                                        monthlyPlanDates: d.monthlyPlanDates,
-                                                        startMonthStr,
-                                                        endMonthStr
-                                                });
+                                        
+                                        // 여전히 실패하면 pendingMap의 모든 키를 순회하며 매칭
+                                        if(pend === 0) {
+                                                const allKeys = Object.keys(semiTl.pendingMap);
+                                                for(const k of allKeys) {
+                                                        const kStr = String(k);
+                                                        const kNorm = kStr.trim();
+                                                        const kNoSpace = kStr.replace(/\s+/g, '');
+                                                        const kNum = String(Number(k)) || k;
+                                                        
+                                                        if(kNorm === codeKey || kNoSpace === codeKey || kNum === codeKey || 
+                                                           kNorm === codeOriginal || kNoSpace === codeOriginal || kNum === codeOriginal) {
+                                                                pend = semiTl.pendingMap[k];
+                                                                break;
+                                                        }
+                                                }
                                         }
                                 }
                         }
@@ -3525,6 +3909,107 @@ async function renderSemiMonthly() {
                 // 현재 선택된 월의 저장된 계획 로드 (기입고 우선)
                 const planMonth = document.getElementById('semi_plan_month')?.value;
                 let savedPlanMap = {};
+                let prevMonthPlanMap = {}; // 이전 달 계획 (2개월치 계산용)
+                let prevMonth = null;
+                let nextMonth = null;
+                let prevTl = null;
+                let nextTl = null;
+                const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+                
+                // 다음 달 미리 계산 (2개월치 캐시 확인용)
+                if(planMonth) {
+                        const planDate = new Date(planMonth + "-01");
+                        const nextMonthDate = new Date(planDate);
+                        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+                        nextMonth = nextMonthDate.toISOString().substring(0, 7);
+                }
+                
+                // 반제품 데이터가 없고 GitHub 저장 계획이 있으면, 저장 계획에서 반제품 정보 생성
+                if((!semiProductData || semiProductData.length === 0) && planMonth) {
+                        try {
+                                const t = document.getElementById('gh_token')?.value;
+                                if(t) {
+                                        // 현재 달부터 역순으로 최근 3개월까지 시도
+                                        const monthsToTry = [];
+                                        const currentDate = new Date(planMonth + "-01");
+                                        for(let i = 0; i < 3; i++) {
+                                                const tryDate = new Date(currentDate);
+                                                tryDate.setMonth(tryDate.getMonth() - i);
+                                                monthsToTry.push(tryDate.toISOString().substring(0, 7));
+                                        }
+                                        
+                                        for(const tryMonth of monthsToTry) {
+                                                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${tryMonth}.json`, { 
+                                                        headers: { Authorization: `token ${t}` } 
+                                                });
+                                                if(res.ok) {
+                                                        const data = await res.json();
+                                                        const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                                                        // GitHub 저장 계획에서 반제품 데이터 생성
+                                                        // 저장된 계획에 spec, price, stock 등이 포함되어 있으면 사용
+                                                        // 없으면 rawData.stock에서 찾아서 사용
+                                                        // 5번 반제품 데이터를 마스터로 사용
+                                                        const semiMasterMap = new Map();
+                                                        if(semiProductData && semiProductData.length > 0) {
+                                                                semiProductData.forEach(item => {
+                                                                        semiMasterMap.set(String(item.code || "").trim(), item);
+                                                                });
+                                                        }
+                                                        const stockInfoMap = rawData.stock || {};
+                                                        semiProductData = loaded.map(item => {
+                                                                const code = item.code || "";
+                                                                const codeKey = String(code).trim();
+                                                                // 5번 업로드 데이터(마스터)에서 정보 가져오기
+                                                                const masterItem = semiMasterMap.get(codeKey);
+                                                                const stockInfo = stockInfoMap[code] || null;
+                                                                return {
+                                                                        code: code,
+                                                                        spec: (item.spec !== undefined && item.spec !== null && item.spec !== "") ? item.spec : (masterItem ? masterItem.spec : (stockInfo ? stockInfo.spec : "")) || "",
+                                                                        price: (item.price !== undefined && item.price !== null && item.price !== 0) ? item.price : (masterItem ? masterItem.price : (stockInfo ? stockInfo.price : 0)) || 0,
+                                                                        stock: (item.stock !== undefined && item.stock !== null && item.stock !== 0) ? item.stock : (masterItem ? masterItem.stock : (stockInfo ? stockInfo.qty : 0)) || 0,
+                                                                        type: item.type || (masterItem ? masterItem.type : "ALL") || "ALL",
+                                                                        unit: item.unit || (masterItem ? masterItem.unit : 10) || 10,
+                                                                        avgUsage: item.avgUsage || (masterItem ? masterItem.avgUsage : 0) || 0,
+                                                                        avg: item.avgUsage || (masterItem ? masterItem.avgUsage : 0) || 0,
+                                                                        avg3mUsage: masterItem ? (masterItem.avg3mUsage || 0) : 0,
+                                                                        avg3mPlan: masterItem ? (masterItem.avg3mPlan || 0) : 0,
+                                                                        plan_A: item.planQty || 0,
+                                                                        plan_B: item.planQty || 0,
+                                                                        safety_A: masterItem ? (masterItem.safety_A || 0) : 0,
+                                                                        safety_B: masterItem ? (masterItem.safety_B || 0) : 0,
+                                                                        target_A: masterItem ? (masterItem.target_A || 0) : 0,
+                                                                        target_B: masterItem ? (masterItem.target_B || 0) : 0,
+                                                                        burn: 0,
+                                                                        pending: 0
+                                                                };
+                                                        });
+                                                        console.log(`[반제품] GitHub 저장 계획에서 ${semiProductData.length}개 항목 로드 (${tryMonth}에서, 5번 업로드 없이)`);
+                                                        // calculateSemiProduct 호출하여 계산값 채우기
+                                                        await calculateSemiProduct();
+                                                        break; // 성공하면 중단
+                                                }
+                                        }
+                                }
+                        } catch(e) {
+                                // 404 등은 정상
+                        }
+                }
+                
+                // 2개월치 평균 계획 캐시 초기화 (월별로 저장)
+                if(!window.twoMonthAvgPlanCache) window.twoMonthAvgPlanCache = {};
+                
+                // 반제품 데이터가 없으면 calculateSemiProduct 호출
+                if(!semiProductData || semiProductData.length === 0) {
+                        await calculateSemiProduct();
+                        // calculateSemiProduct 후에도 데이터가 없으면 빈 테이블 표시
+                        if(!semiProductData || semiProductData.length === 0) {
+                                if(document.getElementById('semi_sum_qty_box')) document.getElementById('semi_sum_qty_box').innerText = `수량: 0 EA`;
+                                if(document.getElementById('semi_sum_amt_box')) document.getElementById('semi_sum_amt_box').innerText = `금액: 0 원`;
+                                if(document.getElementById('semi_sum_stock_amt_box')) document.getElementById('semi_sum_stock_amt_box').innerText = `현재고: 0 원`;
+                                return; // 빈 테이블 표시하고 종료
+                        }
+                }
+                
                 if(planMonth) {
                         try {
                                 const t = document.getElementById('gh_token')?.value;
@@ -3542,6 +4027,32 @@ async function renderSemiMonthly() {
                                                         savedPlanMap[codeKey] = item.planQty || 0;
                                                 });
                                         }
+                                        
+                                        // 이전 달 계획도 미리 로드 (2개월치 계산용, 성능 최적화)
+                                        const planDate = new Date(planMonth + "-01");
+                                        if(planDate.getMonth() > 0) {
+                                                const prevMonthDate = new Date(planDate);
+                                                prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+                                                prevMonth = prevMonthDate.toISOString().substring(0, 7);
+                                                try {
+                                                        const prevRes = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${prevMonth}.json`, { 
+                                                                headers: { Authorization: `token ${t}` } 
+                                                        });
+                                                        if(prevRes.ok) {
+                                                                const prevData = await prevRes.json();
+                                                                const prevLoaded = JSON.parse(decodeURIComponent(escape(atob(prevData.content))));
+                                                                prevLoaded.forEach(item => {
+                                                                        const codeKey = String(item.code || "").trim();
+                                                                        prevMonthPlanMap[codeKey] = item.planQty || 0;
+                                                                });
+                                                        }
+                                                } catch(e) {
+                                                        // 404 등은 정상
+                                                }
+                                        }
+                                        
+                        // 다음 달과 이전 달 TimelineGap은 2개월치 계산이 필요한 경우에만 동적으로 계산
+                        // (성능 최적화를 위해 미리 계산하지 않음)
                                 }
                         } catch(e) {
                                 // 404 등은 정상 (저장된 계획이 없는 경우)
@@ -3563,7 +4074,7 @@ async function renderSemiMonthly() {
                 
                 // 합계는 필터링된 전체 데이터에 대해 계산 (완제품과 동일하게)
                 let tQ = 0, tA = 0, tStockA = 0;
-                f.forEach(d => {
+                for(const d of f) {
                         // 반제품 최종계획 결정 로직:
                         // 1. 엑셀에서 읽은 해당월 계획 데이터가 있으면 우선 사용 (5번 업로드로 읽은 데이터)
                         // 2. 엑셀 업로드가 있었는데 해당 월의 데이터가 없으면 0 (엑셀에 없는 품목은 계획이 없음)
@@ -3592,79 +4103,214 @@ async function renderSemiMonthly() {
                                                 }
                                         }
                                 }
-                                // 엑셀 업로드가 있었는데 해당 월 데이터가 없으면 0으로 유지 (finalPlan은 이미 0)
-                        } else {
-                                // 엑셀 업로드가 없었으면 GitHub 저장 데이터나 계산값 사용
-                                // GitHub에 저장된 계획이 있는지 확인 (빈 객체가 아닌지 확인)
-                                const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
-                                
-                                if(hasSavedPlan) {
-                                        // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
-                                        if(savedPlanMap[codeKey] !== undefined) {
-                                                finalPlan = savedPlanMap[codeKey];
+                                        // 엑셀 업로드가 있었는데 해당 월 데이터가 없으면 GitHub 저장 데이터 확인, 없으면 0
+                                        if(!foundInExcel) {
+                                                // GitHub에 저장된 계획이 있는지 확인
+                                                const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
+                                                
+                                                if(hasSavedPlan) {
+                                                        // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                                                        if(savedPlanMap[codeKey] !== undefined) {
+                                                                finalPlan = savedPlanMap[codeKey];
+                                                        } else {
+                                                                // 저장된 계획에 없으면 0 (엑셀에도 없고 GitHub에도 없으면 계획이 없는 것)
+                                                                finalPlan = 0;
+                                                        }
+                                                } else {
+                                                        // GitHub에 저장된 계획이 없으면 0 (엑셀에도 없고 GitHub에도 없으면 계획이 없는 것)
+                                                        finalPlan = 0;
+                                                }
                                         }
-                                        // 저장된 계획에 해당 품목이 없으면 0으로 유지 (finalPlan은 이미 0)
                                 } else {
-                                        // GitHub에 저장된 계획이 없으면 계산된 계획 사용
+                                        // 엑셀 업로드가 없었으면 GitHub 저장 데이터 확인, 없으면 계산값 사용
+                                        // GitHub에 저장된 계획이 있는지 확인 (빈 객체가 아닌지 확인)
+                                        const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
+                                        
+                                        if(hasSavedPlan) {
+                                                // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                                                if(savedPlanMap[codeKey] !== undefined) {
+                                        finalPlan = savedPlanMap[codeKey];
+                                } else {
+                                                        // 저장된 계획에 없으면 0 (GitHub에 저장된 계획이 있지만 해당 품목이 없으면 계획이 없는 것)
+                                                        finalPlan = 0;
+                                                }
+                                        } else {
+                                                // GitHub에 저장된 계획이 없으면 계산된 계획 사용
                                         finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                 }
                         }
+                        
+                        // 다음 달 계산 (캐시 확인 전에 먼저 설정)
+                        if(!nextMonth && planMonth) {
+                                const planDate = new Date(planMonth + "-01");
+                                const nextMonthDate = new Date(planDate);
+                                nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+                                nextMonth = nextMonthDate.toISOString().substring(0, 7);
+                        }
+                        
+                        // 반제품인 경우 2개월치 계산 적용
+                        // 단, 저장된 계획(GitHub에서 로드한 계획)이 있으면 2개월치 계산 적용 안 함
+                        // 단, 엑셀에서 읽은 해당 월 데이터가 있으면 2개월치 계산 적용 안 함
+                        const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0 && savedPlanMap[codeKey] !== undefined;
+                        
+                        if(planMonth && !foundInExcel && !hasSavedPlan) {
+                                // 저장된 계획이 없을 때만 2개월치 평균 계산 적용
+                                // 캐시에서 이미 계산된 평균값이 있는지 확인
+                                if(!window.monthCalcCache) window.monthCalcCache = {};
+                                const currentMonthKey = `${codeKey}_${planMonth}`;
+                                const cachedAvg = window.monthCalcCache[currentMonthKey];
+                                
+                                if(cachedAvg !== undefined) {
+                                        // 캐시에 평균값이 있으면 그대로 사용
+                                        finalPlan = cachedAvg;
+                                        console.log(`[반제품 2개월치 계산] ${d.code}: 캐시에서 평균값 사용 ${planMonth}=${cachedAvg}`);
+                                } else {
+                                        try {
+                                        const sVal = d.stock || 0;
+                                        const target = (currentSemiLogicMode === 'V20' ? d.target_A : d.target_B);
+                                        const avgUsage = d.avgUsage || d.avg || 0;
+                                        
+                                        // 현재 달 기입고
+                                        const currentPend = d.pending || 0;
+                                        
+                                        // 이전 달 계획 가져오기 - 미리 로드된 데이터 사용
+                                        let prevMonthPlan = 0;
+                                        if(prevMonthPlanMap[codeKey] !== undefined) {
+                                                prevMonthPlan = prevMonthPlanMap[codeKey];
+                                        }
+                                        // 저장된 계획이 없으면 계산
+                                        if(prevMonthPlan === 0 && prevMonth) {
+                                                // 필요시에만 getTimelineGap 호출
+                                                if(!prevTl) {
+                                                        const prevCacheKey = `tl_${refMonth}_${prevMonth}`;
+                                                        if(window.timelineGapCache && window.timelineGapCache[prevCacheKey]) {
+                                                                prevTl = window.timelineGapCache[prevCacheKey];
+                                                        } else {
+                                                                prevTl = await getTimelineGap(refMonth, prevMonth);
+                                                                if(!window.timelineGapCache) window.timelineGapCache = {};
+                                                                window.timelineGapCache[prevCacheKey] = prevTl;
+                                                        }
+                                                }
+                                                let prevBurn = 0;
+                                                if(prevTl && prevTl.gap >= 0) {
+                                                        const refDate = new Date(refMonth + "-01");
+                                                        const prevPlanDate = new Date(prevMonth + "-01");
+                                                        let currentDate = new Date(refDate);
+                                                        let monthsCount = 0;
+                                                        while(currentDate < prevPlanDate) {
+                                                                monthsCount++;
+                                                                currentDate.setMonth(currentDate.getMonth() + 1);
+                                                        }
+                                                        prevBurn = avgUsage * monthsCount;
+                                                }
+                                                let prevPend = 0;
+                                                if(prevTl && prevTl.pendingMap && prevTl.pendingMap[codeKey] !== undefined) {
+                                                        prevPend = prevTl.pendingMap[codeKey];
+                                                }
+                                                const rawPrev = (target + prevBurn) - (sVal + prevPend);
+                                                prevMonthPlan = (rawPrev < d.unit) ? 0 : Math.floor(rawPrev / d.unit) * d.unit;
+                                        }
+                                        
+                                        // 다음 달 계산
+                                        if(!nextMonth) {
+                                                const planDate = new Date(planMonth + "-01");
+                                                const nextMonthDate = new Date(planDate);
+                                                nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+                                                nextMonth = nextMonthDate.toISOString().substring(0, 7);
+                                        }
+                                        
+                                        // 다음 달의 기입고는 현재 달까지의 기입고 + 현재 달의 계산된 계획으로 계산하므로
+                                        // getTimelineGap을 호출할 필요가 없음 (404 에러 방지)
+                                        // nextTl은 사용하지 않음
+                                        
+                                        // 반복 계산으로 5월과 6월 계획을 동일하게 만들기
+                                        // 5월 계획 = f(6월 계획 포함 기입고), 6월 계획 = f(5월 계획 포함 기입고)
+                                        // 두 방정식을 동시에 만족하는 값을 찾기 위해 반복 계산
+                                        
+                                        // 현재 달(5월) 소진 계산
+                                        let currentBurn = 0;
+                                        const refDate = new Date(refMonth + "-01");
+                                        const currentPlanDate = new Date(planMonth + "-01");
+                                        let currentDate = new Date(refDate);
+                                        let currentMonthsCount = 0;
+                                        while(currentDate < currentPlanDate) {
+                                                currentMonthsCount++;
+                                                currentDate.setMonth(currentDate.getMonth() + 1);
+                                        }
+                                        currentBurn = avgUsage * currentMonthsCount;
+                                        
+                                        // 다음 달(6월) 소진 계산 (nextTl이 없어도 계산 가능하도록)
+                                        let nextBurn = 0;
+                                        const nextPlanDate = new Date(nextMonth + "-01");
+                                        currentDate = new Date(refDate);
+                                        let monthsCount = 0;
+                                        while(currentDate < nextPlanDate) {
+                                                monthsCount++;
+                                                currentDate.setMonth(currentDate.getMonth() + 1);
+                                        }
+                                        nextBurn = avgUsage * monthsCount;
+                                        
+                                        // 2개월치 동일 수량 계산: 단순히 한 번씩 계산하고 평균 적용
+                                        // 1. 현재 월(5월) 계획 계산
+                                        // 2. 다음 월(6월) 계획 계산 (5월 계산된 계획을 기입고에 포함)
+                                        // 3. 두 값을 평균내서 두 달 모두에 적용
+                                        
+                                        // 월별 계산값 캐시 초기화
+                                        if(!window.monthCalcCache) window.monthCalcCache = {};
+                                        
+                                        // 현재 월(5월) 계산값 계산 (저장된 계획이 있으면 그 값을 사용, 없으면 계산값 사용)
+                                        const currentPendForCalc = currentPend;
+                                        const rawCurrent = (target + currentBurn) - (sVal + currentPendForCalc);
+                                        let currentPlan = (rawCurrent < d.unit) ? 0 : Math.floor(rawCurrent / d.unit) * d.unit;
+                                        
+                                        // 다음 월(6월) 계산값 계산 (5월 계산된 계획을 기입고에 포함)
+                                        const nextPendForCalc = currentPend + currentPlan; // 5월 기입고 + 5월 계산된 계획
+                                        const rawNext = (target + nextBurn) - (sVal + nextPendForCalc);
+                                        let nextPlan = (rawNext < d.unit) ? 0 : Math.floor(rawNext / d.unit) * d.unit;
+                                        
+                                        // 다음 달 캐시 확인
+                                        const nextMonthKeyForCache = `${codeKey}_${nextMonth}`;
+                                        const nextCachedAvg = window.monthCalcCache[nextMonthKeyForCache];
+                                        
+                                        if(nextCachedAvg !== undefined) {
+                                                // 다음 달 캐시에 평균값이 있으면 그 값을 사용
+                                                nextPlan = nextCachedAvg;
+                                        }
+                                        
+                                        // 두 값을 평균내기
+                                        const avgPlan = Math.round((currentPlan + nextPlan) / 2);
+                                        const avgPlanRounded = (avgPlan < d.unit) ? 0 : Math.floor(avgPlan / d.unit) * d.unit;
+                                        
+                                        // 평균값을 두 달 모두에 적용
+                                        finalPlan = avgPlanRounded;
+                                        const currentMonthKey = `${codeKey}_${planMonth}`;
+                                        const nextMonthKey = `${codeKey}_${nextMonth}`;
+                                        window.monthCalcCache[currentMonthKey] = avgPlanRounded;
+                                        window.monthCalcCache[nextMonthKey] = avgPlanRounded;
+                                        
+                                        console.log(`[반제품 2개월치 계산] ${d.code}: ${planMonth}=${currentPlan}, ${nextMonth}=${nextPlan}, 평균=${avgPlanRounded}`);
+                                } catch(e) {
+                                        console.warn(`[반제품 2개월치 계산] ${d.code} 오류:`, e);
+                                }
+                                }
+                        }
+                        
+                        // 임시로 저장 (표시용)
+                        d._displayPlan = finalPlan;
                         
                         tQ += finalPlan;
                         tA += (finalPlan * d.price);
                         tStockA += (d.stock * d.price);
-                });
+                }
                 
                 // 렌더링은 표시 제한 내에서만
                 f.slice(0, displayLimits.semiMonthly).forEach(d => {
-                        // 반제품 최종계획 결정 로직:
-                        // 1. 엑셀에서 읽은 해당월 계획 데이터가 있으면 우선 사용 (5번 업로드로 읽은 데이터)
-                        // 2. 엑셀 업로드가 있었는데 해당 월의 데이터가 없으면 0 (엑셀에 없는 품목은 계획이 없음)
-                        // 3. 엑셀 업로드가 없었으면:
-                        //    - GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
-                        //    - GitHub에 저장된 계획이 없으면: 계산값 사용
-                        let finalPlan = 0;
-                        const codeKey = String(d.code || "").trim();
-                        let foundInExcel = false;
-                        let hasExcelUpload = false;
-                        
-                        // 엑셀 업로드가 있었는지 확인 (monthlyPlans와 monthlyPlanDates가 있으면 업로드된 것으로 간주)
-                        if(d.monthlyPlans && d.monthlyPlanDates && Array.isArray(d.monthlyPlans) && Array.isArray(d.monthlyPlanDates)) {
-                                hasExcelUpload = true;
-                                
-                                // 먼저 엑셀에서 읽은 해당월 계획 확인 (메모리상의 데이터)
-                                if(planMonth) {
-                                        const planMonthStr = planMonth; // 현재 선택된 계획월
-                                        const monthIdx = d.monthlyPlanDates.findIndex(date => date === planMonthStr);
-                                        if(monthIdx >= 0 && monthIdx < d.monthlyPlans.length) {
-                                                foundInExcel = true; // 엑셀에 해당 월 데이터가 있음
-                                                const excelPlan = Number(d.monthlyPlans[monthIdx]) || 0;
-                                                // 0도 유효한 값이므로 >= 0으로 확인
-                                                if(!isNaN(excelPlan) && excelPlan >= 0) {
-                                                        finalPlan = excelPlan;
-                                                }
-                                        }
-                                }
-                                // 엑셀 업로드가 있었는데 해당 월 데이터가 없으면 0으로 유지 (finalPlan은 이미 0)
-                        } else {
-                                // 엑셀 업로드가 없었으면 GitHub 저장 데이터나 계산값 사용
-                                // GitHub에 저장된 계획이 있는지 확인 (빈 객체가 아닌지 확인)
-                                const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
-                                
-                                if(hasSavedPlan) {
-                                        // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
-                                        if(savedPlanMap[codeKey] !== undefined) {
-                                                finalPlan = savedPlanMap[codeKey];
-                                        }
-                                        // 저장된 계획에 해당 품목이 없으면 0으로 유지 (finalPlan은 이미 0)
-                                } else {
-                                        // GitHub에 저장된 계획이 없으면 계산된 계획 사용
-                                        finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
-                                }
-                        }
+                        // 합계 계산에서 이미 처리한 finalPlan 사용
+                        const finalPlan = d._displayPlan !== undefined ? d._displayPlan : (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                         
                         const tr = document.createElement('tr');
                         const codeOriginal = String(d.code || "");
+                        const codeKey = String(d.code || "").trim();
                         let displayAvgUsage = d.avgUsage || 0;
                         if(semiAvgUsageOverrides.has(codeKey)) displayAvgUsage = semiAvgUsageOverrides.get(codeKey);
                         else if(semiAvgUsageOverrides.has(codeOriginal)) displayAvgUsage = semiAvgUsageOverrides.get(codeOriginal);
@@ -3860,7 +4506,16 @@ async function saveSemiToGithub() {
                                 planQty = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                         }
                         
-                        return { code: d.code, planQty: planQty };
+                        return { 
+                                code: d.code, 
+                                planQty: planQty,
+                                spec: d.spec || "",
+                                price: d.price || 0,
+                                stock: d.stock || 0,
+                                unit: d.unit || 10,
+                                avgUsage: d.avgUsage || 0,
+                                type: d.type || "ALL"
+                        };
                 });
                 
                 if(target.length === 0) return alert("저장할 데이터가 없습니다.");
@@ -3879,15 +4534,170 @@ async function saveSemiToGithub() {
 
 async function loadSemiFromGithub() {
         try {
-                const t = document.getElementById('gh_token')?.value, m = document.getElementById('semi_plan_month')?.value;
-                if(!t || !m) return alert("GitHub 정보 확인!");
-                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${m}.json`, { headers: { Authorization: `token ${t}` } });
+                const t = document.getElementById('gh_token')?.value;
+                let m = document.getElementById('semi_plan_month')?.value;
+                
+                // semi_plan_month가 없으면 semi_month_display에서 읽기 시도
+                if(!m || m === "") {
+                        const displayEl = document.getElementById('semi_month_display');
+                        if(displayEl && displayEl.innerText && displayEl.innerText !== "선택안됨") {
+                                m = displayEl.innerText.trim();
+                        } else {
+                                // 기본값으로 현재 월 사용
+                                m = new Date().toISOString().substring(0, 7);
+                                if(document.getElementById('semi_plan_month')) {
+                                        document.getElementById('semi_plan_month').value = m;
+                                        syncSemiMonthDisplay();
+                                }
+                        }
+                }
+                
+                if(!t) return alert("GitHub 토큰을 입력해주세요!");
+                if(!m) return alert("계획월을 선택해주세요!");
+                
+                const url = `https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${m}.json`;
+                console.log("[반제품 저장된 계획 로드] 요청 URL:", url);
+                console.log("[반제품 저장된 계획 로드] 계획월:", m);
+                console.log("[반제품 저장된 계획 로드] 토큰 존재:", !!t);
+                
+                const res = await fetch(url, { headers: { Authorization: `token ${t}` } });
+                
+                console.log("[반제품 저장된 계획 로드] 응답 상태:", res.status, res.statusText);
+                
+                if(res.ok) {
                 const data = await res.json();
+                        console.log("[반제품 저장된 계획 로드] 데이터 크기:", data.size, "바이트");
                 const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-                loaded.forEach(ld => { const target = semiProductData.find(pd => pd.code === ld.code); if(target) { if(currentSemiLogicMode === 'V20') target.plan_A = ld.planQty; else target.plan_B = ld.planQty; } });
+                        console.log("[반제품 저장된 계획 로드] 로드된 항목 수:", loaded.length);
+                        
+                        // 5번 반제품 데이터를 마스터로 사용
+                        const semiMasterMap = new Map();
+                        if(semiProductData && semiProductData.length > 0) {
+                                semiProductData.forEach(item => {
+                                        semiMasterMap.set(String(item.code || "").trim(), item);
+                                });
+                        }
+                        const stockInfoMap = rawData.stock || {};
+                        
+                        // semiProductData가 비어있으면 GitHub 데이터로 생성
+                        if(!semiProductData || semiProductData.length === 0) {
+                                semiProductData = loaded.map(ld => {
+                                        const code = ld.code || "";
+                                        const codeKey = String(code).trim();
+                                        // 5번 업로드 데이터(마스터)에서 정보 가져오기
+                                        const masterItem = semiMasterMap.get(codeKey);
+                                        const stockInfo = stockInfoMap[code] || null;
+                                        return {
+                                                code: code,
+                                                spec: (ld.spec !== undefined && ld.spec !== null && ld.spec !== "") ? ld.spec : (masterItem ? masterItem.spec : (stockInfo ? stockInfo.spec : "")) || "",
+                                                price: (ld.price !== undefined && ld.price !== null && ld.price !== 0) ? ld.price : (masterItem ? masterItem.price : (stockInfo ? stockInfo.price : 0)) || 0,
+                                                stock: (ld.stock !== undefined && ld.stock !== null && ld.stock !== 0) ? ld.stock : (masterItem ? masterItem.stock : (stockInfo ? stockInfo.qty : 0)) || 0,
+                                                type: ld.type || (masterItem ? masterItem.type : "ALL") || "ALL",
+                                                unit: ld.unit || (masterItem ? masterItem.unit : 10) || 10,
+                                                avgUsage: ld.avgUsage || (masterItem ? masterItem.avgUsage : 0) || 0,
+                                                avg: ld.avgUsage || (masterItem ? masterItem.avgUsage : 0) || 0,
+                                                avg3mUsage: masterItem ? (masterItem.avg3mUsage || 0) : 0,
+                                                avg3mPlan: masterItem ? (masterItem.avg3mPlan || 0) : 0,
+                                                plan_A: ld.planQty || 0,
+                                                plan_B: ld.planQty || 0,
+                                                safety_A: masterItem ? (masterItem.safety_A || 0) : 0,
+                                                safety_B: masterItem ? (masterItem.safety_B || 0) : 0,
+                                                target_A: masterItem ? (masterItem.target_A || 0) : 0,
+                                                target_B: masterItem ? (masterItem.target_B || 0) : 0,
+                                                burn: 0,
+                                                pending: 0
+                                        };
+                                });
+                                console.log(`[반제품 로드] GitHub 데이터로 ${semiProductData.length}개 항목 생성 (5번 마스터 데이터 활용)`);
+                                // calculateSemiProduct 호출하여 계산값 채우기
                 await calculateSemiProduct();
-                alert("반제품 기존 계획 로드 완료!");
-        } catch(e) { console.error("반제품 로드 함수 오류:", e); alert("저장된 데이터가 없습니다."); }
+                        } else {
+                                // semiProductData가 있으면 기존 항목 업데이트
+                                let loadedCount = 0;
+                                loaded.forEach(ld => { 
+                                        const codeKey = String(ld.code || "").trim();
+                                        const target = semiProductData.find(pd => String(pd.code || "").trim() === codeKey); 
+                                        if(target) { 
+                                                // GitHub 저장 데이터에 spec, price, stock이 있으면 업데이트
+                                                // 없으면 5번 마스터 데이터 사용
+                                                const masterItem = semiMasterMap.get(codeKey);
+                                                if(ld.spec !== undefined && ld.spec !== null && ld.spec !== "") {
+                                                        target.spec = ld.spec;
+                                                } else if(masterItem && masterItem.spec) {
+                                                        target.spec = masterItem.spec;
+                                                }
+                                                if(ld.price !== undefined && ld.price !== null && ld.price !== 0) {
+                                                        target.price = ld.price;
+                                                } else if(masterItem && masterItem.price) {
+                                                        target.price = masterItem.price;
+                                                }
+                                                if(ld.stock !== undefined && ld.stock !== null && ld.stock !== 0) {
+                                                        target.stock = ld.stock;
+                                                } else if(masterItem && masterItem.stock) {
+                                                        target.stock = masterItem.stock;
+                                                } else if(stockInfoMap[ld.code]) {
+                                                        target.stock = stockInfoMap[ld.code].qty || 0;
+                                                }
+                                                if(ld.unit !== undefined && ld.unit !== null) target.unit = ld.unit;
+                                                else if(masterItem && masterItem.unit) target.unit = masterItem.unit;
+                                                if(ld.avgUsage !== undefined && ld.avgUsage !== null) target.avgUsage = ld.avgUsage;
+                                                else if(masterItem && masterItem.avgUsage) target.avgUsage = masterItem.avgUsage;
+                                                if(ld.type !== undefined && ld.type !== null) target.type = ld.type;
+                                                else if(masterItem && masterItem.type) target.type = masterItem.type;
+                                                // 계획량 업데이트
+                                                if(currentSemiLogicMode === 'V20') target.plan_A = ld.planQty; 
+                                                else target.plan_B = ld.planQty; 
+                                                loadedCount++;
+                                        } else {
+                                                // 기존 데이터에 없으면 새로 추가 (5번 마스터 데이터 활용)
+                                                const masterItem = semiMasterMap.get(codeKey);
+                                                const stockInfo = stockInfoMap[ld.code] || null;
+                                                semiProductData.push({
+                                                        code: ld.code || "",
+                                                        spec: (ld.spec !== undefined && ld.spec !== null && ld.spec !== "") ? ld.spec : (masterItem ? masterItem.spec : (stockInfo ? stockInfo.spec : "")) || "",
+                                                        price: (ld.price !== undefined && ld.price !== null && ld.price !== 0) ? ld.price : (masterItem ? masterItem.price : (stockInfo ? stockInfo.price : 0)) || 0,
+                                                        stock: (ld.stock !== undefined && ld.stock !== null && ld.stock !== 0) ? ld.stock : (masterItem ? masterItem.stock : (stockInfo ? stockInfo.qty : 0)) || 0,
+                                                        type: ld.type || (masterItem ? masterItem.type : "ALL") || "ALL",
+                                                        unit: ld.unit || (masterItem ? masterItem.unit : 10) || 10,
+                                                        avgUsage: ld.avgUsage || (masterItem ? masterItem.avgUsage : 0) || 0,
+                                                        avg: ld.avgUsage || (masterItem ? masterItem.avgUsage : 0) || 0,
+                                                        avg3mUsage: masterItem ? (masterItem.avg3mUsage || 0) : 0,
+                                                        avg3mPlan: masterItem ? (masterItem.avg3mPlan || 0) : 0,
+                                                        plan_A: ld.planQty || 0,
+                                                        plan_B: ld.planQty || 0,
+                                                        safety_A: masterItem ? (masterItem.safety_A || 0) : 0,
+                                                        safety_B: masterItem ? (masterItem.safety_B || 0) : 0,
+                                                        target_A: masterItem ? (masterItem.target_A || 0) : 0,
+                                                        target_B: masterItem ? (masterItem.target_B || 0) : 0,
+                                                        burn: 0,
+                                                        pending: 0
+                                                });
+                                                loadedCount++;
+                                        }
+                                });
+                                console.log(`[반제품 로드] 기존 데이터에서 ${loadedCount}개 항목 업데이트/추가 (5번 마스터 데이터 활용)`);
+                                // calculateSemiProduct 호출하여 계산값 업데이트
+                                await calculateSemiProduct();
+                        }
+                        
+                        renderSemiMonthly();
+                        alert(`반제품 기존 계획 로드 완료! (${loaded.length}개 항목)`);
+                } else {
+                        const errorText = await res.text().catch(() => "");
+                        console.error("[반제품 저장된 계획 로드] 오류 응답:", res.status, errorText);
+                        
+                        if(res.status === 403) {
+                                alert(`GitHub API 권한 오류 (403)가 발생했습니다.\n토큰 권한을 확인해주세요.\n\nURL: ${url}`);
+                        } else if(res.status === 404) {
+                                alert(`저장된 데이터가 없습니다.\n\n계획월: ${m}\n파일 경로: data/semi_plan_${m}.json\n\nGitHub 저장소에 해당 파일이 존재하는지 확인해주세요.`);
+                        } else {
+                                alert(`데이터 로드 실패: HTTP ${res.status}\n\n${errorText.substring(0, 200)}`);
+                        }
+                }
+        } catch(e) { 
+                console.error("[반제품 저장된 계획 로드] 예외 발생:", e); 
+                alert(`로드 중 오류가 발생했습니다.\n\n${e.message || e}`); 
+        }
 }
 
 function downloadSemiMonthly() {
@@ -4264,8 +5074,11 @@ async function loadPlanDataForMonth(month, forceReload = false) {
                         headers: { Authorization: `token ${t}` } 
                 });
                 
-                if(res.status === 404) {
-                        // 파일이 없으면 빈 맵 반환 (삭제된 경우) - 정상 상황이므로 조용히 처리
+                if(res.status === 404 || res.status === 403) {
+                        // 파일이 없거나 권한이 없으면 빈 맵 반환 - 정상 상황이므로 조용히 처리
+                        if(res.status === 403) {
+                                console.warn(`계획 데이터 로드 실패 (${month}): HTTP 403`);
+                        }
                         planDataCache[month] = {};
                         return {};
                 }
@@ -4294,8 +5107,8 @@ async function loadPlanDataForMonth(month, forceReload = false) {
                         return {};
                 }
         } catch(e) {
-                // 네트워크 오류 등 - 404가 아닌 경우만 로그 출력
-                if(e.message && !e.message.includes('404') && !e.message.includes('Not Found') && !e.message.includes('Failed to fetch')) {
+                // 네트워크 오류 등 - 404, 403이 아닌 경우만 로그 출력
+                if(e.message && !e.message.includes('404') && !e.message.includes('403') && !e.message.includes('Not Found') && !e.message.includes('Forbidden') && !e.message.includes('Failed to fetch')) {
                         console.warn(`계획 데이터 로드 실패 (${month}):`, e);
                 }
                 planDataCache[month] = {};
