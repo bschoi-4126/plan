@@ -48,8 +48,15 @@
         <div class="header-card">
                 <h4 class="fw-bold text-primary mb-3">🚀 PPS AI Intelligence V41</h4>
                 <div class="github-config row g-3 align-items-center">
-                        <div class="col-md-4"><label class="fw-bold mb-1 small">🔑 GitHub Token</label><input type="password" id="gh_token" class="form-control form-control-sm" onchange="saveGitHubToken()" oninput="saveGitHubToken()"></div>
-                        <div class="col-md-3"><label class="fw-bold mb-1 small">📅 실재고 기준월</label><input type="month" id="ref_month" class="form-control form-control-sm" onchange="saveRefMonth()"></div>
+                        <div class="col-md-3"><label class="fw-bold mb-1 small">🔑 GitHub Token</label><input type="password" id="gh_token" class="form-control form-control-sm" onchange="saveGitHubToken()" oninput="saveGitHubToken()"></div>
+                        <div class="col-md-2"><label class="fw-bold mb-1 small">📅 실재고 기준월</label><input type="month" id="ref_month" class="form-control form-control-sm" onchange="saveRefMonth()"></div>
+                        <div class="col-md-2">
+                                <label class="fw-bold mb-1 small">📏 재고 시점 기준</label>
+                                <select id="stock_timing" class="form-select form-select-sm" onchange="saveTiming()">
+                                        <option value="start">월초 재고 (기준월 소진 포함)</option>
+                                        <option value="end">월말 재고 (기준월 소진 제외)</option>
+                                </select>
+                        </div>
                         <div class="col-md-5 d-flex gap-2 align-items-end"><button class="btn btn-dark btn-sm w-100" onclick="saveToGithub()">💾 현재 계획 저장(확정)</button><button class="btn btn-outline-dark btn-sm w-100" onclick="loadFromGithub()">📂 저장된 계획 로드</button><button class="btn btn-success btn-sm" onclick="saveUnitOverridesToGithub()" title="포장단위 설정 저장">💾 포장</button><button class="btn btn-outline-success btn-sm" onclick="loadUnitOverridesFromGithubAll()" title="포장단위 설정 불러오기">📥 포장</button><button class="btn btn-primary btn-sm" onclick="saveHtmlToGithub()" title="HTML 파일을 GitHub에 저장 (자동 업데이트용)">💾 HTML</button></div>
                 </div>
                 <div class="row g-3 mb-3">
@@ -458,6 +465,11 @@ function saveRefMonth() {
         }
 }
 
+function saveTiming() {
+        localStorage.setItem('jemini_stock_timing', document.getElementById('stock_timing').value);
+        reCalculate();
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
         try {
                 document.getElementById('gh_token').value = localStorage.getItem('jemini_gh_token') || "";
@@ -532,6 +544,7 @@ window.addEventListener('DOMContentLoaded', async () => {
                 if(sSearchInit) sSearchInit.value = "";
                 const mSearchInit = document.getElementById('m_search_code');
                 if(mSearchInit) mSearchInit.value = "";
+                document.getElementById('stock_timing').value = localStorage.getItem('jemini_stock_timing') || "start";
                 if(c_sales && c_stock && c_master) reCalculate();
         } catch(e) { console.error("초기화 오류:", e); }
 });
@@ -675,11 +688,17 @@ async function reCalculate() {
                         // 예: 실재고 기준월 2026-01, 계획월 2026-01 → 없음 (계획월 제외)
                         // 예: 실재고 기준월 2026-01, 계획월 2026-02 → 2026년 1월 판매량 (또는 wAvg × 1)
                         // 예: 실재고 기준월 2026-01, 계획월 2026-05 → 2026년 1월 + 2월 + 3월 + 4월 판매량 (또는 wAvg × 4)
+                        const timing = document.getElementById('stock_timing')?.value || "start";
                         let burn = 0;
                         if(tl.gap >= 0) {
                                 const refDate = new Date(refMonth + "-01");
                                 const planDate = new Date(planMonth + "-01");
                                 let currentDate = new Date(refDate);
+                                // 수정: 월말 기준일 경우 소진 계산 시 기준월을 건너뜀 (startOffset 적용)
+                                let startOffset = (timing === "end") ? 1 : 0;
+                                if(startOffset === 1) {
+                                        currentDate.setMonth(currentDate.getMonth() + 1);
+                                }
                                 let monthsCount = 0;
                                 let totalActualSales = 0;
                                 while(currentDate < planDate) {
@@ -1105,6 +1124,40 @@ async function renderMonthly() {
                         return d.category === "계획"; 
                 });
                 
+                // 중국 생산품 2개월 묶음 계산에 필요한 TimelineGap을 미리 계산 (품목마다 반복 호출 방지)
+                let pairEndMonth = null;
+                let pairEndTl = null;
+                
+                if(planMonth) {
+                        const planDate = new Date(planMonth + "-01");
+                        const planMonthNum = planDate.getMonth() + 1; // 1-12
+                        const planYear = planDate.getFullYear();
+                        
+                        // 2026년 5월 이후의 중국 생산품만 2개월 묶음 처리
+                        if(planYear === 2026 && planMonthNum >= 5) {
+                                // 5-6월, 7-8월, 9-10월, 11-12월 중 어디에 속하는지 확인
+                                if(planMonthNum >= 5 && planMonthNum <= 6) {
+                                        pairEndMonth = "2026-06";
+                                } else if(planMonthNum >= 7 && planMonthNum <= 8) {
+                                        pairEndMonth = "2026-08";
+                                } else if(planMonthNum >= 9 && planMonthNum <= 10) {
+                                        pairEndMonth = "2026-10";
+                                } else if(planMonthNum >= 11 && planMonthNum <= 12) {
+                                        pairEndMonth = "2026-12";
+                                }
+                                
+                                // pairEndMonth가 설정되었으면 미리 getTimelineGap 호출 (한 번만)
+                                if(pairEndMonth) {
+                                        try {
+                                                pairEndTl = await getTimelineGap(refMonth, pairEndMonth);
+                                                console.log(`[2개월 묶음 기입고] ${planMonth} -> ${pairEndMonth} 미리 계산 완료 (기입고: ${Object.keys(pairEndTl.pendingMap || {}).length}개 품목)`);
+                                        } catch(e) {
+                                                console.warn(`[2개월 묶음 기입고] ${pairEndMonth} 계산 실패 (정상):`, e.message);
+                                        }
+                                }
+                        }
+                }
+                
                 // 저장된 계획이 있으면 우선 사용, 없으면 프로그램 계산값 사용
                 let tQ = 0, tA = 0, tStockA = 0; 
                 for(const d of f) {
@@ -1175,7 +1228,7 @@ async function renderMonthly() {
                                 const hasSavedPlan = savedPlanMap && typeof savedPlanMap === 'object' && Object.keys(savedPlanMap).length > 0;
                                 
                                 if(hasSavedPlan) {
-                                        // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 0
+                                        // GitHub에 저장된 계획이 있으면: 저장된 데이터에 있으면 그 값, 없으면 계산값 사용 (신규 품목 지원)
                                         let foundSavedPlan = false;
                                         for(const variant of codeVariants) {
                                                 if(savedPlanMap[variant] !== undefined) {
@@ -1184,144 +1237,73 @@ async function renderMonthly() {
                                                         break;
                                                 }
                                         }
-                                        // 저장된 계획에 없으면 0 (GitHub에 저장된 계획이 있지만 해당 품목이 없으면 계획이 없는 것)
+                                        // 저장된 계획에 없으면 계산값 사용 (신규 품목이거나 아직 저장되지 않은 품목)
                                         if(!foundSavedPlan) {
-                                        finalPlan = 0;
+                                                finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                         }
                                 } else {
-                                        // GitHub에 저장된 계획이 없으면 프로그램 계산값 사용 (기입고는 최종계획이 아님)
+                                        // GitHub에 저장된 계획이 없으면 프로그램 계산값 사용
                                         const isChinaProduct = d.wp && d.wp.includes("중국");
-                                        finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                         
-                                        // 중국생산 완제품인 경우 2개월치 동일 수량 계산
-                                        // (중국 관련 품목은 5·6월 등 2개월 계획 수립 시, 저장/엑셀에 있는 기존 5·6월 계획값은 무시하고
-                                        //  확정된 과거 기입고/소진만을 기준으로 수식으로 다시 계산한다)
-                                        //
-                                        // ※ 이미 지나간 월(1~4월 등)의 계획/기입고는 그대로 사용하고,
-                                        //    앞으로 수립하는 2개월(예: 5·6월)의 값만 수식으로 재계산하는 개념이다.
+                                        // 중국 생산품 2개월 묶음 계산 (미리 계산한 pairEndTl 사용)
+                                        const isTwoMonthPair = isChinaProduct && pairEndMonth && pairEndTl;
                                         
-                                        if(isChinaProduct && finalPlan > 0 && planMonth) {
-                                                        try {
+                                        if(isTwoMonthPair) {
+                                                try {
+                                                        const target = (currentLogicMode==='V20'?d.target_A:d.target_B);
                                                         const sVal = (d.category === "주문" ? 0 : d.stock);
-                                                        const target = (currentLogicMode === 'V20' ? d.target_A : d.target_B);
-                                                        // 코드 변형 목록은 이후 기입고/이전달 계획 조회에서 공통 사용
-                                                        const codeVariants = [String(d.code).trim(), String(d.code).replace(/\s+/g, ''), String(Number(d.code)) || String(d.code)];
+                                                        const timing = document.getElementById('stock_timing')?.value || "start";
+                                                        const codeKey = String(d.code).trim();
                                                         
-                                                        // 사용자 수식에서 필요한 "planMonth-1까지 기입고"는
-                                                        // 이미 reCalculate 단계에서 d.pending으로 계산되어 있음.
-                                                        // (현재 화면에서도 5월/6월 선택 시 모두 40,000으로 동일하게 표시되는 값)
-                                                        // 따라서 여기서는 d.pending을 그대로 사용하여
-                                                        // 4월까지 기입고(40,000)을 신뢰한다.
-                                                        const currentPend = d.pending || 0;
-                                                        
-                                                        // 이전 달 계획 가져오기 (6월 선택 시 5월 계획) - 미리 로드된 데이터 사용
-                                                        let prevMonthPlan = 0;
-                                                        for(const variant of codeVariants) {
-                                                                if(prevMonthPlanMap[variant] !== undefined) {
-                                                                        prevMonthPlan = prevMonthPlanMap[variant];
-                                                                        break;
-                                                                }
+                                                        // 마지막 달 이전까지의 소진 계산
+                                                        let burnUntilPairEnd = 0;
+                                                        let startOffset = (timing === "end") ? 1 : 0;
+                                                        const refDate = new Date(refMonth + "-01");
+                                                        const pairEndDate = new Date(pairEndMonth + "-01");
+                                                        let currentDate = new Date(refDate);
+                                                        if(startOffset === 1) {
+                                                                currentDate.setMonth(currentDate.getMonth() + 1);
                                                         }
-                                                        // 저장된 계획이 없으면 계산된 값 사용
-                                                        if(prevMonthPlan === 0 && prevMonth) {
-                                                                // 필요시에만 getTimelineGap 호출
-                                                                if(!prevTl) {
-                                                                        const prevCacheKey = `tl_${refMonth}_${prevMonth}`;
-                                                                        if(window.timelineGapCache && window.timelineGapCache[prevCacheKey]) {
-                                                                                prevTl = window.timelineGapCache[prevCacheKey];
-                                                                        } else {
-                                                                                prevTl = await getTimelineGap(refMonth, prevMonth);
-                                                                                if(!window.timelineGapCache) window.timelineGapCache = {};
-                                                                                window.timelineGapCache[prevCacheKey] = prevTl;
-                                                                        }
+                                                        while(currentDate < pairEndDate) {
+                                                                const year = currentDate.getFullYear().toString();
+                                                                const month = currentDate.getMonth();
+                                                                if(rawData.salesByYear[year] && rawData.salesByYear[year][d.code]) {
+                                                                        burnUntilPairEnd += rawData.salesByYear[year][d.code][month] || 0;
+                                                                } else {
+                                                                        burnUntilPairEnd += d.avg;
                                                                 }
-                                                                let prevBurn = 0;
-                                                                if(prevTl && prevTl.gap >= 0) {
-                                                                        const refDate = new Date(refMonth + "-01");
-                                                                        const prevPlanDate = new Date(prevMonth + "-01");
-                                                                        let currentDate = new Date(refDate);
-                                                                        let monthsCount = 0;
-                                                                        let totalActualSales = 0;
-                                                                        while(currentDate < prevPlanDate) {
-                                                                                monthsCount++;
-                                                                                const year = currentDate.getFullYear().toString();
-                                                                                const month = currentDate.getMonth();
-                                                                                if(rawData.salesByYear[year] && rawData.salesByYear[year][d.code]) {
-                                                                                        totalActualSales += rawData.salesByYear[year][d.code][month] || 0;
-                                                                                }
-                                                                                currentDate.setMonth(currentDate.getMonth() + 1);
-                                                                        }
-                                                                        prevBurn = totalActualSales > 0 ? totalActualSales : (d.avg * monthsCount);
-                                                                }
-                                                                let prevPend = 0;
-                                                                if(prevTl && prevTl.pendingMap && Object.keys(prevTl.pendingMap).length > 0) {
-                                                                        for(const variant of codeVariants) {
-                                                                                if(prevTl.pendingMap[variant] !== undefined) {
-                                                                                        prevPend = prevTl.pendingMap[variant];
-                                                                                        break;
-                                                                                }
-                                                                        }
-                                                                }
-                                                                const rawPrev = (target + prevBurn) - (sVal + prevPend);
-                                                                prevMonthPlan = (rawPrev < d.unit) ? 0 : Math.floor(rawPrev / d.unit) * d.unit;
+                                                                currentDate.setMonth(currentDate.getMonth() + 1);
                                                         }
                                                         
-                                                        // 다음 달 계산
-                                                        if(!nextMonth) {
-                                                                const planDate = new Date(planMonth + "-01");
-                                                                const nextMonthDate = new Date(planDate);
-                                                                nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-                                                                nextMonth = nextMonthDate.toISOString().substring(0, 7);
-                                                        }
+                                                        const pairEndPend = pairEndTl.pendingMap[codeKey] || 0;
                                                         
-                                                        // 다음 달의 기입고는 현재 달까지의 기입고 + 현재 달의 계산된 계획으로 계산하므로
-                                                        // getTimelineGap을 호출할 필요가 없음 (404 에러 방지)
-                                                        // nextTl은 사용하지 않음
+                                                        // ★ 6월 초 기준 적정재고 달성 계산 ★
+                                                        // 6월에 6월 계획이 입고되는 시점에 적정재고가 되도록 계산
+                                                        // 
+                                                        // 수식: 5월+6월 필요량 = 6월적정재고 + (1~5월소진) - 현재고 - (1~4월기입고)
+                                                        // 
+                                                        // 예시: 품목 9953
+                                                        //   - 6월 적정재고: 24,102
+                                                        //   - 1~5월 소진: 12,051 × 5 = 60,255 (burnUntilPairEnd)
+                                                        //   - 현재고: 9,724
+                                                        //   - 1~4월 기입고: 39,200 (pairEndPend)
+                                                        //   → 필요량 = 24,102 + 60,255 - 9,724 - 39,200 = 35,433
+                                                        //   → 각 달 = 35,433 ÷ 2 = 17,716.5 → 17,710 (포장단위 10)
+                                                        const needed = target + burnUntilPairEnd - sVal - pairEndPend;
+                                                        const avgP = Math.max(0, Math.round(needed / 2));
+                                                        finalPlan = Math.floor(avgP/d.unit)*d.unit;
                                                         
-                                                        // 반복 계산으로 5월과 6월 계획을 동일하게 만들기
-                                                        // 5월 계획 = f(6월 계획 포함 기입고), 6월 계획 = f(5월 계획 포함 기입고)
-                                                        // 두 방정식을 동시에 만족하는 값을 찾기 위해 반복 계산
-                                                        
-                                                        // 사용자 수식 직접 적용: 6월 1일 입고 시점 기준
-                                                        // 현재고 - 5월까지 소진 + 4월까지 입고 + (5월계획 + 6월계획) = 적정재고
-                                                        // 2X = 적정재고 - 현재고 + (5월까지 소진) - (4월까지 입고)
-                                                        // X = (적정재고 - 현재고 + (5월까지 소진) - (4월까지 입고)) / 2
-                                                        
-                                                        // 중요: 5월까지 소진은 항상 동일해야 함 (5월 선택이든 6월 선택이든)
-                                                        // d.burn은 refMonth부터 planMonth - 1까지의 소진
-                                                        // 5월 선택 시: d.burn = 1~4월, 5월까지 = d.burn + d.avg
-                                                        // 6월 선택 시: d.burn = 1~5월, 5월까지 = d.burn (이미 5월 포함)
-                                                        const monthlyUsage = (currentLogicMode === 'V20' ? d.avg : d.avg) || 0;
-                                                        const planDate = new Date(planMonth + "-01");
-                                                        const mayDate = new Date("2026-05-01");
-                                                        let totalBurnUntilMay = 0;
-                                                        if(planDate.getTime() <= mayDate.getTime()) {
-                                                                // 5월 이하 선택 시: d.burn은 planMonth - 1까지, 5월까지 = d.burn + d.avg
-                                                                totalBurnUntilMay = (d.burn || 0) + monthlyUsage;
-                                                        } else {
-                                                                // 6월 이상 선택 시: d.burn은 1~5월 포함, 5월까지 = d.burn (이미 5월 포함)
-                                                                totalBurnUntilMay = d.burn || 0;
-                                                        }
-                                                        
-                                                        // 사용자 수식 적용 (항상 5월까지 소진 사용)
-                                                        const neededFor2Months = target - sVal + totalBurnUntilMay - currentPend;
-                                                        const avgPlanFor2Months = neededFor2Months > 0 ? Math.round(neededFor2Months / 2) : 0;
-                                                        const avgPlanRounded = (avgPlanFor2Months < d.unit) ? 0 : Math.floor(avgPlanFor2Months / d.unit) * d.unit;
-                                                        
-                                                        // 캐시에 저장 (5월과 6월 모두 동일한 값)
-                                                        if(!window.monthCalcCache) window.monthCalcCache = {};
-                                                        const currentMonthKey = `${d.code}_${planMonth}`;
-                                                        const nextMonthKey = `${d.code}_${nextMonth}`;
-                                                        window.monthCalcCache[currentMonthKey] = avgPlanRounded;
-                                                        window.monthCalcCache[nextMonthKey] = avgPlanRounded;
-                                                        
-                                                        finalPlan = avgPlanRounded;
-                                                        
-                                                        console.log(`[완제품 2개월치 계산] ${d.code}: 수식적용 결과=${avgPlanRounded}, 적정재고=${target}, 현재고=${sVal}, 5월까지소진=${totalBurnUntilMay}, 4월까지입고=${currentPend}, 필요량=${neededFor2Months}, planMonth=${planMonth}`);
+                                                        console.log(`[중국 2개월 묶음] ${d.code} ${planMonth}: 필요량=${needed}, 각달평균=${avgP}, 최종=${finalPlan}, 짝수월=${pairEndMonth}, 적정재고=${target}, 소진=${burnUntilPairEnd}, 기입고=${pairEndPend}`);
                                                 } catch(e) {
-                                                        console.warn(`[2개월치 계산] ${d.code} 오류:`, e);
+                                                        console.warn(`[중국 2개월 묶음] ${d.code} 오류:`, e);
+                                                        finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                                 }
+                                        } else {
+                                                // 중국 생산품이 아니거나, 2026년 1-4월이거나, 2개월 묶음이 아닌 경우
+                                                finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                         }
+                                        
+                                        // 기존 복잡한 2개월 계산 로직 제거 (위에서 단순화된 로직으로 대체)
                                 }
                         }
                         
@@ -1963,14 +1945,15 @@ function showABCGradeDetails(grade) {
 
 async function getTimelineGap(r, p, isSemi = false) { 
         try {
-                const t = document.getElementById('gh_token')?.value; 
+                const t = document.getElementById('gh_token')?.value;
+                const timing = document.getElementById('stock_timing')?.value || "start";
                 if(!t || !r || !p) {
                         console.warn("[기입고] GitHub Token 또는 기준월이 없습니다.", { token: !!t, refMonth: r, planMonth: p });
                         return { gap: 0, pendingMap: {}, plan3mMap: {} }; 
                 }
                 const s = new Date(r + "-01"), e = new Date(p + "-01"), gap = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()); 
                 const pm = {}, plan3mMap = {}, plan3mData = [];
-                console.log("[기입고] 계산 시작:", { refMonth: r, planMonth: p, gap });
+                console.log("[기입고] 계산 시작:", { refMonth: r, planMonth: p, gap, timing });
                 // 실재고 기준월부터 계획월 이전까지의 계획 데이터를 누적 합산 (계획월 제외)
                 // 예: 실재고 기준월 2026-01, 계획월 2026-01 → 없음 (계획월 제외)
                 // 예: 실재고 기준월 2026-01, 계획월 2026-02 → 2026-01만 (계획월 제외)
@@ -1979,6 +1962,10 @@ async function getTimelineGap(r, p, isSemi = false) {
                         const monthsToLoad = [];
                         // 실재고 기준월부터 계획월 이전까지 포함 (계획월 제외)
                         let c = new Date(s);
+                        // 수정: 월말 기준(end)이면 기준월은 이미 입고가 반영된 재고이므로 다음 달부터 기입고 합산
+                        if(timing === "end") {
+                                c.setMonth(c.getMonth() + 1);
+                        }
                         while(c < e) {
                                 monthsToLoad.push(c.toISOString().substring(0, 7));
                                 c.setMonth(c.getMonth()+1);
