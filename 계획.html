@@ -230,11 +230,14 @@
 
                 <div class="tab-pane fade" id="monthly-pane" role="tabpanel">
                         <div class="row mb-3 align-items-center text-center">
-                                <div class="col-md-3"><div class="month-selector"><button class="btn-month" onclick="changeMonth(-1)">◀</button><div id="month_display" class="month-display">선택안됨</div><button class="btn-month" onclick="changeMonth(1)">▶</button><input type="month" id="plan_month" style="display:none;" onchange="syncMonthDisplay()"></div></div>
-                                <div class="col-md-3"><div class="logic-switcher"><button class="logic-btn active" id="btn_logic_v20" onclick="switchLogic('V20')">기존 로직</button><button class="logic-btn" id="btn_logic_v21" onclick="switchLogic('V21')">고도화 로직(AI)</button></div></div>
-                                <div class="col-md-4 d-flex gap-2"><div class="summary-box text-info" id="m_sum_stock_amt_box">현재고: 0 원</div><div class="summary-box text-primary" id="m_sum_qty_box">수량: 0 EA</div><div class="summary-box text-success" id="m_sum_amt_box">금액: 0 원</div></div>
-                                <div class="col-md-2"><button class="btn btn-success fw-bold btn-sm w-100" onclick="downloadMonthly()">📥 다운로드</button></div>
-                        </div>
+    <div class="col-md-2"><div class="month-selector"><button class="btn-month" onclick="changeMonth(-1)">◀</button><div id="month_display" class="month-display">선택안됨</div><button class="btn-month" onclick="changeMonth(1)">▶</button><input type="month" id="plan_month" style="display:none;" onchange="syncMonthDisplay()"></div></div>
+    <div class="col-md-2"><div class="logic-switcher"><button class="logic-btn active" id="btn_logic_v20" onclick="switchLogic('V20')">기존 로직</button><button class="logic-btn" id="btn_logic_v21" onclick="switchLogic('V21')">고도화 로직(AI)</button></div></div>
+    <div class="col-md-4 d-flex gap-2"><div class="summary-box text-info" id="m_sum_stock_amt_box">현재고: 0 원</div><div class="summary-box text-primary" id="m_sum_qty_box">수량: 0 EA</div><div class="summary-box text-success" id="m_sum_amt_box">금액: 0 원</div></div>
+    <div class="col-md-4 d-flex gap-2 justify-content-end">
+        <button class="btn btn-success fw-bold btn-sm px-3" onclick="downloadMonthly()">📥 다운로드</button>
+        <button class="btn btn-primary fw-bold btn-sm px-3" onclick="copyAllPlansToLinkedMonth('finished')">📋 전체 복사</button>
+    </div>
+</div>
                         <div class="row mb-2 px-3 align-items-center">
                                 <div class="col-md-2"><select id="m_sel_wp" class="form-select form-select-sm" onchange="renderMonthly()"></select></div>
                                 <div class="col-md-2"><input type="text" id="m_search_code" class="form-control form-control-sm" placeholder="품목코드/품목명/규격 검색" onkeyup="renderMonthly()"></div>
@@ -313,11 +316,16 @@
 
                 <div class="tab-pane fade" id="semi-monthly-pane" role="tabpanel">
                         <div class="row mb-3 align-items-center text-center">
-                                <div class="col-md-3"><div class="month-selector"><button class="btn-month" onclick="changeSemiMonth(-1)">◀</button><div id="semi_month_display" class="month-display">선택안됨</div><button class="btn-month" onclick="changeSemiMonth(1)">▶</button><input type="month" id="semi_plan_month" style="display:none;" onchange="syncSemiMonthDisplay()"></div></div>
-                                <div class="col-md-3"><div class="logic-switcher"><button class="logic-btn active" id="btn_semi_logic_v20" onclick="switchSemiLogic('V20')">기존 로직</button><button class="logic-btn" id="btn_semi_logic_v21" onclick="switchSemiLogic('V21')">고도화 로직(AI)</button></div></div>
-                                <div class="col-md-4 d-flex gap-2"><div class="summary-box text-info" id="semi_sum_stock_amt_box">현재고: 0 원</div><div class="summary-box text-primary" id="semi_sum_qty_box">수량: 0 EA</div><div class="summary-box text-success" id="semi_sum_amt_box">금액: 0 원</div></div>
-                                <div class="col-md-2 d-flex gap-2"><button class="btn btn-dark btn-sm w-100" onclick="saveSemiToGithub()">💾 저장</button><button class="btn btn-outline-dark btn-sm w-100" onclick="loadSemiFromGithub()">📂 로드</button><button class="btn btn-success fw-bold btn-sm w-100" onclick="downloadSemiMonthly()">📥 다운로드</button></div>
-                        </div>
+    <div class="col-md-2"><div class="month-selector"><button class="btn-month" onclick="changeSemiMonth(-1)">◀</button><div id="semi_month_display" class="month-display">선택안됨</div><button class="btn-month" onclick="changeSemiMonth(1)">▶</button><input type="month" id="semi_plan_month" style="display:none;" onchange="syncSemiMonthDisplay()"></div></div>
+    <div class="col-md-2"><div class="logic-switcher"><button class="logic-btn active" id="btn_semi_logic_v20" onclick="switchSemiLogic('V20')">기존 로직</button><button class="logic-btn" id="btn_semi_logic_v21" onclick="switchSemiLogic('V21')">고도화 로직(AI)</button></div></div>
+    <div class="col-md-3 d-flex gap-2"><div class="summary-box text-info" id="semi_sum_stock_amt_box" style="font-size:11px;">현재고: 0 원</div><div class="summary-box text-primary" id="semi_sum_qty_box" style="font-size:11px;">수량: 0 EA</div><div class="summary-box text-success" id="semi_sum_amt_box" style="font-size:11px;">금액: 0 원</div></div>
+    <div class="col-md-5 d-flex gap-1 justify-content-end">
+        <button class="btn btn-dark btn-sm px-2" onclick="saveSemiToGithub()">💾 저장</button>
+        <button class="btn btn-outline-dark btn-sm px-2" onclick="loadSemiFromGithub()">📂 로드</button>
+        <button class="btn btn-success fw-bold btn-sm px-2" onclick="downloadSemiMonthly()">📥 다운로드</button>
+        <button class="btn btn-primary fw-bold btn-sm px-2" onclick="copyAllPlansToLinkedMonth('semi')">📋 전체 복사</button>
+    </div>
+</div>
                         <div class="row mb-2 px-3 align-items-center">
                                 <div class="col-md-2"><select id="semi_sel_type" class="form-select form-select-sm" onchange="renderSemiMonthly()"><option value="ALL">전체 기종</option></select></div>
                                 <div class="col-md-2"><input type="text" id="semi_search_code" class="form-control form-control-sm" placeholder="품목코드/품목명/규격 검색" onkeyup="renderSemiMonthly()"></div>
@@ -4576,6 +4584,44 @@ function getPlanQtyForMonth(code, month) {
         if(item && item._tempPlanQty !== undefined) return item._tempPlanQty;
         return 0;
 }
+
+// [제민 패치] 현재 화면에 보이는 모든 품목의 계획을 짝꿍 달(홀수<->짝수)로 일괄 복사
+async function copyAllPlansToLinkedMonth(type) {
+    const planMonth = type === 'finished' 
+        ? document.getElementById('plan_month')?.value 
+        : (document.getElementById('semi_plan_month')?.value || document.getElementById('semi_month_display')?.innerText);
+
+    if (!planMonth || planMonth === "선택안됨") return alert("먼저 기준월을 선택해주세요.");
+
+    const [year, month] = planMonth.split('-').map(Number);
+    const isOdd = (month % 2 !== 0);
+    const linkedMonthNum = isOdd ? month + 1 : month - 1;
+    
+    // 12월이나 1월 예외 처리 (짝꿍이 없는 경우 대비)
+    if (linkedMonthNum < 1 || linkedMonthNum > 12) return alert("복사할 수 있는 짝꿍 달이 범위(1-12월)를 벗어납니다.");
+    
+    const linkedMonth = `${year}-${String(linkedMonthNum).padStart(2, '0')}`;
+
+    if (!confirm(`${planMonth}의 모든 계획을 ${linkedMonth}로 복사하시겠습니까?`)) return;
+
+    // 현재 화면 데이터 가져오기 (반제품은 전체 데이터, 완제품은 필터링된 데이터)
+    const targetData = type === 'finished' ? window.visibleMonthlyData : semiProductData;
+    
+    if (!targetData || targetData.length === 0) return alert("복사할 데이터가 없습니다.");
+    if (!window.monthCalcCache) window.monthCalcCache = {};
+
+    let copyCount = 0;
+    targetData.forEach(d => {
+        const codeKey = String(d.code).trim();
+        // UI에 계산되어 있는 최종값(_displayPlan)을 그대로 짝꿍 달에 복사
+        const currentVal = d._displayPlan || 0;
+        window.monthCalcCache[`${codeKey}_${linkedMonth}`] = currentVal;
+        copyCount++;
+    });
+
+    alert(`✅ 성공: ${planMonth} -> ${linkedMonth}\n총 ${copyCount}개 품목의 계획이 복사되었습니다.`);
+}
+
 </script>
 </body>
 </html>
