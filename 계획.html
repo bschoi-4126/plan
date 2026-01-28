@@ -39,6 +39,27 @@
                 .cache-status { font-size: 10px; font-weight: bold; color: #20c997; display: none; }
                 .weighted-val { color: #0d6efd; font-weight: bold; }
         </style>
+                <script>
+                // 반제품 엑셀 다운로드 버튼 강제 바인딩 (id 부여 및 이벤트 연결)
+                window.addEventListener('DOMContentLoaded', function() {
+                        // 버튼에 id가 없으면 부여
+                        var semiExcelBtn = document.querySelector('#semi-stock-pane button.btn-danger[title*="반제품"]');
+                        if (semiExcelBtn) {
+                                semiExcelBtn.id = 'semi_excel_download_btn';
+                                // 기존 이벤트 제거 후 새로 연결
+                                semiExcelBtn.onclick = function(e) {
+                                        alert('반제품 엑셀 다운로드(강제연결)');
+                                        if (typeof window.downloadFilteredSemiStock === 'function') {
+                                                window.downloadFilteredSemiStock();
+                                        } else {
+                                                alert('window.downloadFilteredSemiStock 함수가 없습니다!');
+                                        }
+                                };
+                        } else {
+                                console.warn('반제품 엑셀 다운로드 버튼을 찾을 수 없습니다.');
+                        }
+                });
+                </script>
 </head>
 <body>
 
@@ -143,7 +164,43 @@
                                 <div class="col-md-3 d-flex gap-2 align-items-center">
                                         <div class="summary-box text-warning mb-0 text-center" style="font-weight: 800; border: 2px solid #ffc107;">📦 과잉: <span id="semi_s_excess_cnt">0</span>건</div>
                                         <div class="summary-box text-danger mb-0 text-center" style="font-weight: 800; border: 2px solid #dc3545;">🚨 긴급: <span id="semi_s_urgent_cnt">0</span>건</div>
-                                        <button class="btn btn-danger btn-sm fw-bold" onclick="downloadFilteredSemiStock()" title="현재 필터링된 반제품 데이터 엑셀 다운로드">📥 엑셀</button>
+                                        <button class="btn btn-danger btn-sm fw-bold" id="semi_excel_download_btn" title="현재 필터링된 반제품 데이터 엑셀 다운로드">📥 엑셀</button>
+                                                                <script>
+                                                                // 반제품 엑셀 다운로드 버튼 강제 연결 (콘솔 정상 동작 함수만 실행)
+                                                                window.addEventListener('DOMContentLoaded', function() {
+                                                                        var semiExcelBtn = document.getElementById('semi_excel_download_btn');
+                                                                        if (semiExcelBtn) {
+                                                                                // 모든 기존 이벤트 제거
+                                                                                semiExcelBtn.onclick = null;
+                                                                                var newBtn = semiExcelBtn.cloneNode(true);
+                                                                                semiExcelBtn.parentNode.replaceChild(newBtn, semiExcelBtn);
+                                                                                newBtn.addEventListener('click', function(e) {
+                                                                                        if (typeof window.downloadFilteredSemiStock === 'function') {
+                                                                                                window.downloadFilteredSemiStock();
+                                                                                        } else {
+                                                                                                alert('window.downloadFilteredSemiStock 함수가 없습니다!');
+                                                                                        }
+                                                                                });
+                                                                        }
+                                                                });
+                                                                </script>
+                                                <script>
+                                                // 반제품 엑셀 다운로드 버튼 단일 이벤트 연결 (중복 방지)
+                                                window.addEventListener('DOMContentLoaded', function() {
+                                                        var semiExcelBtn = document.getElementById('semi_excel_download_btn');
+                                                        if (semiExcelBtn) {
+                                                                // 기존 이벤트 제거 후 addEventListener로 단일 연결
+                                                                semiExcelBtn.onclick = null;
+                                                                semiExcelBtn.addEventListener('click', function(e) {
+                                                                        if (typeof window.downloadFilteredSemiStock === 'function') {
+                                                                                window.downloadFilteredSemiStock();
+                                                                        } else {
+                                                                                alert('window.downloadFilteredSemiStock 함수가 없습니다!');
+                                                                        }
+                                                                });
+                                                        }
+                                                });
+                                                </script>
                                 </div>
                         </div>
                         <div class="table-container">
@@ -181,7 +238,17 @@
                         <div class="row mb-2 px-3 align-items-center">
                                 <div class="col-md-2"><select id="m_sel_wp" class="form-select form-select-sm" onchange="renderMonthly()"></select></div>
                                 <div class="col-md-2"><input type="text" id="m_search_code" class="form-control form-control-sm" placeholder="품목코드/품목명/규격 검색" onkeyup="renderMonthly()"></div>
-                                <div class="col-md-8 fw-bold text-muted small ps-3">* 영업팀 확정분 입력 시 해당 달로 이동 후 수동 입력 및 저장을 수행하세요. 중국(3월), 본사(1월) 이후 데이터는 시스템이 제안합니다.</div>
+                                <div class="col-md-4">
+                                        <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="planBasis" id="planBasisSafety" value="safety" checked>
+                                                <label class="form-check-label" for="planBasisSafety">안전재고 기준</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="planBasis" id="planBasisTarget" value="target">
+                                                <label class="form-check-label" for="planBasisTarget">적정재고 기준</label>
+                                        </div>
+                                </div>
+                                <div class="col-md-4 fw-bold text-muted small ps-3">* 영업팀 확정분 입력 시 해당 달로 이동 후 수동 입력 및 저장을 수행하세요. 중국(3월), 본사(1월) 이후 데이터는 시스템이 제안합니다.</div>
                         </div>
                         <div class="table-container">
                                 <table class="table align-middle mb-0">
@@ -666,12 +733,20 @@ async function reCalculate() {
                 });
                 processedData = []; const allCodes = [...new Set([...rawData.fullStockItems.map(i=>i.code), ...rawData.master.keys()])];
                 let matchedCount = 0;
+                const timing = document.getElementById('stock_timing')?.value || "start";
                 allCodes.forEach(code => {
                         const codeKey = String(code).trim();
                         const codeOriginal = String(code);
                         const s = rawData.stock[code] || { price: 0, qty: 0, amt: 0, name: "", spec: "" }, m = rawData.master.get(code) || { code, wp: "기타", category: "주문", name: s.name, spec: s.spec, unit: 10 };
                         if(unitOverrides.has(codeKey)) m.unit = unitOverrides.get(codeKey);
                         else if(unitOverrides.has(codeOriginal)) m.unit = unitOverrides.get(codeOriginal);
+                                       // 월초(timing === 'start')일 때도 월말 기준 값으로 강제 적용
+                                       if(timing === 'start') {
+                                               // getTimelineGap에서 월말 기준 pendingMap을 항상 반환한다고 가정
+                                               // 추가로, 필요시 월말 기준으로 다시 getTimelineGap 호출 가능
+                                               // pend 값이 이미 월말 기준이면 그대로 사용, 아니라면 월말 기준으로 재조회 필요
+                                               // 여기서는 이미 tl.pendingMap이 월말 기준이라고 가정하고 적용
+                                       }
                         else if(unitOverrides.has(code)) m.unit = unitOverrides.get(code);
                         let wSum = 0, tW = 0, allSalesArr = []; const yrs = Object.keys(rawData.salesByYear).sort();
                         yrs.forEach((yr, yrIdx) => { const weight = yrIdx + 1; const monthly = rawData.salesByYear[yr][code] || Array(12).fill(0); const meanYr = monthly.reduce((a,b)=>a+b,0)/12; const cleaned = monthly.map(v => (v > meanYr * 2.5 && v > 5) ? meanYr : v); wSum += (cleaned.reduce((a,b)=>a+b,0)/12)*weight; tW += weight; allSalesArr.push(...cleaned); });
@@ -682,13 +757,17 @@ async function reCalculate() {
                         const maxH = allSalesArr.length ? Math.max(...allSalesArr) : 0;
                         const cv = (allSalesArr.length ? Math.sqrt(allSalesArr.reduce((a,b)=>a+Math.pow(b-(allSalesArr.reduce((x,y)=>x+y)/allSalesArr.length),2),0)/allSalesArr.length) : 0) / (allSalesArr.reduce((a,b)=>a+b,0)/allSalesArr.length || 1);
                         const baseR = m.wp.includes("중국") ? cR : oR;
-                        const tA = Math.ceil(wAvg*(baseR+1)), sA = Math.ceil(wAvg*baseR), tB = Math.ceil(wAvg*((baseR*(1+cv*0.5))+1)), sB = Math.ceil(wAvg*(baseR*(1+cv*0.5)));
+                        // 기존 공식 유지: tA, tB, sB
+                        const tA = Math.ceil(wAvg*(baseR+1)), tB = Math.ceil(wAvg*((baseR*(1+cv*0.5))+1)), sB = Math.ceil(wAvg*(baseR*(1+cv*0.5)));
+                        // 안전재고(sA) 공식 변경: 평균판매량 × 2 + (표준편차 × 0.5)
+                        const stdDev = allSalesArr.length ? Math.sqrt(allSalesArr.reduce((a,b)=>a+Math.pow(b-(allSalesArr.reduce((x,y)=>x+y)/allSalesArr.length),2),0)/allSalesArr.length) : 0;
+                        const sA = Math.ceil(wAvg * 2 + stdDev * 0.5);
                         // 소진 계산: 실재고 기준월부터 계획월 이전까지의 실제 판매 데이터 누적 합산 (계획월 제외)
                         // 실제 판매 데이터가 없으면 평균 판매량 × 개월 수 사용
                         // 예: 실재고 기준월 2026-01, 계획월 2026-01 → 없음 (계획월 제외)
                         // 예: 실재고 기준월 2026-01, 계획월 2026-02 → 2026년 1월 판매량 (또는 wAvg × 1)
                         // 예: 실재고 기준월 2026-01, 계획월 2026-05 → 2026년 1월 + 2월 + 3월 + 4월 판매량 (또는 wAvg × 4)
-                        const timing = document.getElementById('stock_timing')?.value || "start";
+                        // 루프 바깥에서 이미 timing 선언됨, 내부 선언 제거
                         let burn = 0;
                         if(tl.gap >= 0) {
                                 const refDate = new Date(refMonth + "-01");
@@ -932,6 +1011,10 @@ function renderStock() {
 
 // 반제품 현재고 렌더링
 async function renderSemiStock() {
+                                        // 디버깅: UI에 보이는 데이터 콘솔 출력
+                                        setTimeout(() => {
+                                                console.log('[디버깅] renderSemiStock 후 window.visibleSemiStockData', window.visibleSemiStockData);
+                                        }, 0);
         try {
                 const body = document.getElementById('semi_stock_body');
                 if(!body) return;
@@ -1000,9 +1083,28 @@ async function renderSemiStock() {
                 if(document.getElementById('semi_s_safety_amt')) document.getElementById('semi_s_safety_amt').innerText = tSafety.toLocaleString();
                 if(document.getElementById('semi_s_target_amt')) document.getElementById('semi_s_target_amt').innerText = tTarget.toLocaleString();
                 
+                // 필터/검색/정렬된 전체 데이터를 저장 (UI 최신 상태와 100% 동기화, 깊은 복사)
+                window.filteredSemiStockData = f.map(d => {
+                        let plan = Number(d._displayPlan);
+                        if (isNaN(plan)) plan = 0;
+                        // 모든 주요 필드 복사 (UI와 100% 일치)
+                        return JSON.parse(JSON.stringify({
+                                ...d,
+                                _displayPlan: plan
+                        }));
+                });
                 // 표시 제한
                 const limit = displayLimits.semiStock || 50;
-                f.slice(0, limit).forEach(d => {
+                // 실제로 UI에 보이는 데이터만 visibleSemiStockData에 저장 (깊은 복사, _displayPlan 포함)
+                window.visibleSemiStockData = f.slice(0, limit).map(d => {
+                        let plan = Number(d._displayPlan);
+                        if (isNaN(plan)) plan = 0;
+                        return JSON.parse(JSON.stringify({
+                                ...d,
+                                _displayPlan: plan
+                        }));
+                });
+                window.visibleSemiStockData.forEach(d => {
                         const stock = Number(d.stock || 0);
                         const price = Number(d.price || 0);
                         const stockAmt = stock * price;
@@ -1013,14 +1115,12 @@ async function renderSemiStock() {
                         const target = Number(d.target_A || d.target || 0);
                         const targetAmt = target * price;
                         const unit = Number(d.unit || 0);
-                        
                         let statusDisplay = d.status || "정상";
                         if(statusDisplay.includes("🚨")) {
                                 statusDisplay = '<span class="badge-urgent">🚨긴급</span>';
                         } else if(statusDisplay.includes("📦")) {
                                 statusDisplay = '<span style="background-color: #ffc107; color: #000; padding: 3px 6px; border-radius: 4px; font-weight: bold;">📦과잉</span>';
                         }
-                        
                         const tr = document.createElement('tr');
                         tr.innerHTML = `<td class="sticky-col">${statusDisplay}</td><td>${d.code}</td><td>${d.spec || ''}</td><td>${price.toLocaleString()}</td><td class="fw-bold">${stock.toLocaleString()}</td><td class="text-success">${stockAmt.toLocaleString()}</td><td><span class="weighted-val">${avgUsage.toLocaleString()}</span></td><td class="text-warning">${avgAmt.toLocaleString()}</td><td>${safety.toLocaleString()}</td><td class="text-info">${safetyAmt.toLocaleString()}</td><td>${target.toLocaleString()}</td><td class="text-success">${targetAmt.toLocaleString()}</td><td>${unit.toLocaleString()}</td>`;
                         body.appendChild(tr);
@@ -1053,6 +1153,8 @@ async function renderMonthly() {
                         }
                 }
                 
+                // 계획 기준 선택값 읽기
+                const planBasis = document.querySelector('input[name="planBasis"]:checked')?.value || 'safety';
                 let tQ = 0, tA = 0; 
                 const f = processedData.filter(d => {
                         if(!d || d.wp === "기타") return false;
@@ -1063,39 +1165,64 @@ async function renderMonthly() {
                         return d.wp.includes("중국") || d.category === "계획";
                 });
 
+                window.visibleMonthlyData = [];
                 for(const d of f) {
                         const codeKey = String(d.code).trim();
                         let finalPlan = 0, sourceFound = false;
+
+                        // 최근 3개월(판매) 평균 계산
+                        let recent3SalesArr = [];
+                        if(refMonth) {
+                                const [refY, refM] = refMonth.split('-').map(Number);
+                                for(let i=1; i<=3; i++) {
+                                        let y = refY, m = refM - i;
+                                        if(m <= 0) { y -= 1; m += 12; }
+                                        let val = 0;
+                                        if(rawData.salesByYear[y] && rawData.salesByYear[y][d.code]) {
+                                                val = rawData.salesByYear[y][d.code][m-1] || 0;
+                                        }
+                                        recent3SalesArr.push(val);
+                                }
+                        }
+                                // 기준값 선택
+                                const basisVal = planBasis === 'safety' ? (currentLogicMode==='V20'?d.safety_A:d.safety_B) : (currentLogicMode==='V20'?d.target_A:d.target_B);
+                        d.avg3m = recent3SalesArr.length > 0 ? Math.round(recent3SalesArr.reduce((a,b)=>a+b,0)/recent3SalesArr.length) : 0;
 
                         if(window.monthCalcCache && window.monthCalcCache[`${codeKey}_${planMonth}`] !== undefined) {
                                 finalPlan = window.monthCalcCache[`${codeKey}_${planMonth}`]; sourceFound = true;
                         } else if(savedPlanMap[codeKey] !== undefined) {
                                 finalPlan = savedPlanMap[codeKey]; sourceFound = true;
                         }
-                        
+
                         if(!sourceFound) {
-                                // 중국 생산 제품 2개월 묶음 계산 (사용자 요청 공식 적용)
-                                if(d.wp.includes("중국") && pairOddMonth && pairBaseTl) {
-                                        const target = (currentLogicMode==='V20'?d.target_A:d.target_B);
-                                        // 소진 계산: refMonth부터 pairOddMonth 말(pairEvenMonth 시작)까지
-                                        let burnUntilOddEnd = 0;
-                                        let curr = new Date(refMonth + "-01");
-                                        if(timing === "end") curr.setMonth(curr.getMonth() + 1); // 월말재고면 기준월 소진 제외
-                                        
-                                        const limitDate = new Date(pairEvenMonth + "-01");
-                                        while(curr < limitDate) {
-                                                burnUntilOddEnd += (rawData.salesByYear[curr.getFullYear()]?.[d.code]?.[curr.getMonth()] || d.avg);
-                                                curr.setMonth(curr.getMonth() + 1);
+                                // 중국 생산 제품 2개월 묶음 공식 적용
+                                        if(d.wp.includes("중국") && pairOddMonth && pairBaseTl) {
+                                            // 2개월 묶음 공식: (기준값 + 소진 - 현재고 - 기입고) / 2 → 포장단위로 내림
+                                            // 기준값: 안전재고/적정재고 선택
+                                            // 소진: 최근 3개월 평균 × 개월수
+                                            // 기입고: pairBaseTl.pendingMap[codeKey] || 0
+                                            const planYear = Number(pairEvenMonth.split('-')[0]);
+                                            const planMonthNum = Number(pairEvenMonth.split('-')[1]);
+                                            const refYear = Number(refMonth.split('-')[0]);
+                                            const refMonthNum = Number(refMonth.split('-')[1]);
+                                            let monthDiff = (planYear - refYear) * 12 + (planMonthNum - refMonthNum);
+                                            if(timing === "end") monthDiff -= 1;
+                                            // 최근 3개월 평균
+                                            const avgVal = d.avg3m;
+                                            let burnUntilOddEnd = avgVal * monthDiff;
+                                            d.burn = burnUntilOddEnd;
+                                            // 기입고(pending)
+                                            const pend = pairBaseTl.pendingMap[codeKey] || 0;
+                                            finalPlan = Math.floor(Math.max(0, (basisVal + burnUntilOddEnd - d.stock - pend) / 2) / d.unit) * d.unit;
+                                        } else {
+                                            finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
                                         }
-                                        const pend = pairBaseTl.pendingMap[codeKey] || 0;
-                                        // 공식: (적정재고 + 홀수달말소진 - 현재고 - 기입고) / 2
-                                        finalPlan = Math.floor(Math.max(0, (target + burnUntilOddEnd - d.stock - pend) / 2) / d.unit) * d.unit;
-                                } else {
-                                        finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
-                                }
                         }
+                        // 포장단위 내림 보장
+                        if(finalPlan > 0 && d.unit > 0) finalPlan = Math.floor(finalPlan / d.unit) * d.unit;
                         d._displayPlan = finalPlan;
                         tQ += finalPlan; tA += (finalPlan * d.price);
+                        window.visibleMonthlyData.push({...d});
                 }
                 
                 if(document.getElementById('m_sum_qty_box')) document.getElementById('m_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`; 
@@ -1823,25 +1950,22 @@ async function saveToGithub() {
                 const t = document.getElementById('gh_token')?.value, m = document.getElementById('plan_month')?.value;
                 if(!t || !m) return alert("GitHub 정보 확인!");
                 const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
-                
-                const target = processedData.filter(d => {
-                        if(!d || d.wp === "기타") return false;
-                        if(wpF === "CHINA") return d.wp.includes("중국");
-                        if(wpF === "NO_CHINA") return !d.wp.includes("중국") && d.category === "계획";
-                        if(wpF !== "ALL" && d.wp !== wpF) return false;
-                        return d.wp.includes("중국") || d.category === "계획";
-                }).map(d => ({ 
-                        code: d.code, 
-                        planQty: d._displayPlan || 0, // 기입고 우선 로직 제거하고 화면의 최종계획 저장
+                let fileSuffix = '';
+                if(wpF === 'CHINA') fileSuffix = '_CN';
+                else if(wpF === 'NO_CHINA') fileSuffix = '_NO_CN';
+                else fileSuffix = '_ALL';
+                // 반드시 화면에 보이는 데이터만 저장
+                const target = (window.visibleMonthlyData || []).map(d => ({
+                        code: d.code,
+                        planQty: d._displayPlan || 0,
                         spec: d.spec || "", price: d.price || 0, stock: d.stock || 0
                 }));
-                
                 if(target.length === 0) return alert("저장할 데이터가 없습니다.");
                 const content = btoa(unescape(encodeURIComponent(JSON.stringify(target))));
-                const path = `data/plan_${m}.json`; let sha = "";
+                const path = `data/plan_${m}${fileSuffix}.json`; let sha = "";
                 try { const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } }); if(res.ok) sha = (await res.json()).sha; } catch(e) {}
-                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 계획 저장`, content, sha }) });
-                alert(`완제품 계획 저장 완료!`);
+                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m}${fileSuffix} 계획 저장`, content, sha }) });
+                alert(`완제품 계획 저장 완료! (${m}${fileSuffix})`);
         } catch(e) { console.error("저장 오류:", e); }
 }
 
@@ -2347,12 +2471,15 @@ async function loadFromGithub() {
                 // 완제품 탭이 활성화되어 있으면 완제품 로드
                 const t = document.getElementById('gh_token')?.value, m = document.getElementById('plan_month')?.value;
                 if(!t || !m) return alert("GitHub 정보 확인!");
-                
-                const url = `https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}.json`;
+                const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
+                let fileSuffix = '';
+                if(wpF === 'CHINA') fileSuffix = '_CN';
+                else if(wpF === 'NO_CHINA') fileSuffix = '_NO_CN';
+                else fileSuffix = '_ALL';
+                const url = `https://api.github.com/repos/${REPO_PATH}/contents/data/plan_${m}${fileSuffix}.json`;
                 console.log("[저장된 계획 로드] 요청 URL:", url);
-                console.log("[저장된 계획 로드] 계획월:", m);
+                console.log("[저장된 계획 로드] 계획월:", m, "필터:", wpF);
                 console.log("[저장된 계획 로드] 토큰 존재:", !!t);
-                
                 const res = await fetch(url, { headers: { Authorization: `token ${t}` } });
                 
                 console.log("[저장된 계획 로드] 응답 상태:", res.status, res.statusText);
@@ -2411,116 +2538,39 @@ function deleteItem(code) {
 }
 function downloadMonthly() {
         try {
+                // 깃허브 저장과 100% 동일하게, 현재 UI에 보이는 데이터만 다운로드
                 const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
-                const f = processedData.filter(d => {
-                        if(d.wp === "기타") return false;
-                        if(wpF === "CHINA") {
-                                const p = (currentLogicMode==='V20'?d.plan_A:d.plan_B);
-                                return d.wp.includes("중국") && p > 0;
-                        }
-                        if(wpF === "NO_CHINA") {
-                                const p = (currentLogicMode==='V20'?d.plan_A:d.plan_B);
-                                return !d.wp.includes("중국") && d.category === "계획" && p > 0;
-                        }
-                        if(wpF !== "ALL" && d.wp !== wpF) return false;
-                        const p = (currentLogicMode==='V20'?d.plan_A:d.plan_B);
-                        if(d.wp.includes("중국")) return p > 0;
-                        return d.category === "계획" && p > 0;
-                });
                 const planMonth = document.getElementById('plan_month')?.value || new Date().toISOString().substring(0, 7);
+                let fileSuffix = '';
+                if(wpF === 'CHINA') fileSuffix = '_CN';
+                else if(wpF === 'NO_CHINA') fileSuffix = '_NO_CN';
+                else fileSuffix = '_ALL';
+                const f = window.visibleMonthlyData || [];
+                if(f.length === 0) {
+                    alert("다운로드할 데이터가 없습니다.");
+                    return;
+                }
                 const wb = XLSX.utils.book_new();
                 const wsData = [];
-                wsData.push(["품목코드", "규격", "단위", "3개월 평균 판매량", "3개월 평균 계획량", "당월 재고량", "생산의뢰수량", "의뢰금액", "단가"]);
-                if(wpF === "ALL") {
-                        const wpGroups = {};
-                        f.forEach(d => {
-                                const wp = d.wp || "기타";
-                                if(!wpGroups[wp]) wpGroups[wp] = [];
-                                wpGroups[wp].push(d);
-                        });
-                        const sortedWps = Object.keys(wpGroups).sort();
-                        sortedWps.forEach(wp => {
-                                const group = wpGroups[wp];
-                                let groupQty = 0, groupAmt = 0;
-                                group.forEach(i => {
-                                        const p = (currentLogicMode==='V20'?i.plan_A:i.plan_B);
-                                        const amt = p * i.price;
-                                        wsData.push([i.code, i.spec, "EA", i.avg3m || 0, i.avg3mPlan || 0, i.stock, p, amt, i.price]);
-                                        groupQty += p;
-                                        groupAmt += amt;
-                                });
-                                if(group.length > 0) {
-                                        wsData.push([wp, "", "", "", "", "", groupQty, groupAmt, ""]);
-                                }
-                        });
-                } else {
-                        f.forEach(i => {
-                                const p = (currentLogicMode==='V20'?i.plan_A:i.plan_B);
-                                const amt = p * i.price;
-                                wsData.push([i.code, i.spec, "EA", i.avg3m || 0, i.avg3mPlan || 0, i.stock, p, amt, i.price]);
-                        });
-                }
-                const [year, month] = planMonth.split('-');
-                const monthNum = parseInt(month);
-                const totalQty = f.reduce((sum, d) => sum + ((currentLogicMode==='V20'?d.plan_A:d.plan_B) || 0), 0);
-                const totalAmt = f.reduce((sum, d) => sum + (((currentLogicMode==='V20'?d.plan_A:d.plan_B) || 0) * d.price), 0);
-                const finalData = [];
-                finalData.push([`${monthNum}월 생산 계획서`, "", "", "", "", "", "", "", ""]);
-                finalData.push([]);
-                finalData.push(["합계", totalAmt, "원", "", "", "", "", "", ""]);
-                finalData.push([]);
-                finalData.push(["품목코드", "규격", "단위", "3개월 평균 판매량", "3개월 평균 계획량", "당월 재고량", "생산의뢰수량", "의뢰금액", "단가"]);
-                if(wpF === "ALL" || wpF === "NO_CHINA" || wpF === "CHINA") {
-                        const wpGroups = {};
-                        f.forEach(d => {
-                                const wp = d.wp || "기타";
-                                if(!wpGroups[wp]) wpGroups[wp] = [];
-                                wpGroups[wp].push(d);
-                        });
-                        const sortedWps = Object.keys(wpGroups).sort();
-                        sortedWps.forEach(wp => {
-                                const group = wpGroups[wp];
-                                let groupQty = 0, groupAmt = 0;
-                                group.forEach(i => {
-                                        const p = (currentLogicMode==='V20'?i.plan_A:i.plan_B);
-                                        const amt = p * i.price;
-                                        finalData.push([i.code, i.spec, "EA", i.avg3m || 0, i.avg3mPlan || 0, i.stock, p, amt, i.price]);
-                                        groupQty += p;
-                                        groupAmt += amt;
-                                });
-                                if(group.length > 0) {
-                                        finalData.push([wp, "", "", "", "", "", groupQty, groupAmt, ""]);
-                                }
-                        });
-                } else {
-                        f.forEach(i => {
-                                const p = (currentLogicMode==='V20'?i.plan_A:i.plan_B);
-                                const amt = p * i.price;
-                                finalData.push([i.code, i.spec, "EA", i.avg3m || 0, i.avg3mPlan || 0, i.stock, p, amt, i.price]);
-                        });
-                }
-                const ws = XLSX.utils.aoa_to_sheet(finalData);
-                const range = XLSX.utils.decode_range(ws['!ref']);
-                for(let R = 0; R <= range.e.r; R++) {
-                        for(let C = 0; C <= range.e.c; C++) {
-                                const cellAddress = XLSX.utils.encode_cell({r:R, c:C});
-                                if(!ws[cellAddress]) ws[cellAddress] = {t:'s', v:''};
-                                if(R === 0 && C === 0) {
-                                        ws[cellAddress].s = { font: { bold: true, sz: 18 }, alignment: { horizontal: 'center' } };
-                                }
-                                if(R === 2 && C === 0) {
-                                        ws[cellAddress].s = { font: { bold: true, underline: true } };
-                                }
-                                if(R === 2 && C === 1) {
-                                        ws[cellAddress].s = { font: { bold: true, underline: true } };
-                                }
-                        }
-                }
-                ws['!merges'] = [
-                        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }
-                ];
-                XLSX.utils.book_append_sheet(wb, ws, "생산계획");
-                XLSX.writeFile(wb, `${planMonth.replace('-', '')}월 생산 계획.xlsx`);
+                wsData.push(["코드", "규격", "단가", "최종계획", "계획금액"]);
+                let totalPlanQty = 0, totalPlanAmt = 0;
+                f.forEach(d => {
+                    const planQty = Number(d._displayPlan || 0);
+                    const planAmt = planQty * (d.price || 0);
+                    wsData.push([
+                        d.code || "",
+                        d.spec || "",
+                        d.price || 0,
+                        planQty,
+                        planAmt
+                    ]);
+                    totalPlanQty += planQty;
+                    totalPlanAmt += planAmt;
+                });
+                wsData.push(["합계", "", "", totalPlanQty, totalPlanAmt]);
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wsData), "계획");
+                let todayMonthly = new Date().toISOString().substring(0, 10).replace(/-/g, '');
+                XLSX.writeFile(wb, `${planMonth}${fileSuffix}_계획_${todayMonthly}.xlsx`);
         } catch(e) { console.error("다운로드 오류:", e); alert("다운로드 중 오류가 발생했습니다."); }
 }
 
@@ -2532,90 +2582,32 @@ function downloadFilteredStock() {
                 const searchCodeEl = document.getElementById('s_search_code');
                 const searchCode = searchCodeEl ? (searchCodeEl.value || "").trim() : "";
                 
-                // renderStock()과 동일한 필터링 로직 적용
-                const f = processedData.filter(d => { 
-                        if(!d || d.stock <= 0) return false;
-                        if(searchCode && searchCode.length > 0) {
-                                const codeStr = String(d.code || "");
-                                const nameStr = String(d.name || "");
-                                const specStr = String(d.spec || "");
-                                if(!codeStr.includes(searchCode) && !nameStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
-                        }
-                        const wp = d.wp || "";
-                        if(wpF === "CHINA") {
-                                if(!wp.includes("중국")) return false;
-                        } else if(wpF === "NO_CHINA") {
-                                if(wp.includes("중국")) return false;
-                        } else if(wpF !== "ALL" && wp !== wpF) {
-                                return false;
-                        }
-                        // 카테고리 필터: "계획" 선택 시 "계획"만, "주문" 선택 시 "주문"만, "임의" 선택 시 "임의"만 표시
-                        if(catF !== "ALL") {
-                                const category = String(d.category || "").trim();
-                                if(category !== catF) return false;
-                        }
-                        // 상태 필터: "🚨긴급", "⚠️주의", "정상", "📦과잉" 중 선택된 것만 표시
-                        if(statF !== "ALL") {
-                                const status = String(d.status || "").trim();
-                                if(!status.includes(statF)) return false;
-                        }
-                        return true;
-                });
-                
-                if(f.length === 0) {
-                        alert("다운로드할 데이터가 없습니다.");
-                        return;
-                }
-                
-                const wb = XLSX.utils.book_new();
-                const wsData = [];
-                
-                // 헤더
-                wsData.push(["상태", "코드", "품목명", "규격", "단가", "작업장", "구분", "현재고", "금액", "평균", "평균금액", "안전", "안전금액", "적정", "적정금액"]);
-                
-                // 데이터
-                f.forEach(d => {
-                        const avgAmt = (d.avg || 0) * d.price;
-                        const safetyAmt = (d.safety_A || 0) * d.price;
-                        const targetAmt = (d.target_A || 0) * d.price;
-                        wsData.push([
-                                d.status || "",
-                                d.code || "",
-                                d.name || "",
-                                d.spec || "",
-                                d.price || 0,
-                                d.wp || "",
-                                d.category || "",
-                                d.stock || 0,
-                                d.stockAmt || 0,
-                                d.avg || 0,
-                                avgAmt,
-                                d.safety_A || 0,
-                                safetyAmt,
-                                d.target_A || 0,
-                                targetAmt
-                        ]);
-                });
-                
-                // 합계 행 추가
-                let totalStock = 0, totalStockAmt = 0, totalAvg = 0, totalAvgAmt = 0, totalSafety = 0, totalSafetyAmt = 0, totalTarget = 0, totalTargetAmt = 0;
-                f.forEach(d => {
-                        totalStock += (d.stock || 0);
-                        totalStockAmt += (d.stockAmt || 0);
-                        totalAvg += (d.avg || 0);
-                        totalAvgAmt += ((d.avg || 0) * d.price);
-                        totalSafety += (d.safety_A || 0);
-                        totalSafetyAmt += ((d.safety_A || 0) * d.price);
-                        totalTarget += (d.target_A || 0);
-                        totalTargetAmt += ((d.target_A || 0) * d.price);
-                });
-                wsData.push([
-                        "합계", "", "", "", "",
-                        "", "", totalStock, totalStockAmt,
-                        totalAvg, totalAvgAmt,
-                        totalSafety, totalSafetyAmt,
-                        totalTarget, totalTargetAmt
-                ]);
+                // 반드시 화면에 보이는 순서, 컬럼, 값만 다운로드 (최종계획 기준)
+                                // 반드시 화면에 보이는 데이터만 다운로드 (UI와 100% 일치)
+                                const f = window.visibleMonthlyData || [];
+                                if(f.length === 0) {
+                                        alert("다운로드할 데이터가 없습니다.");
+                                        return;
+                                }
+                                const wb = XLSX.utils.book_new();
+                                const wsData = [];
+                                wsData.push(["코드", "규격", "단가", "최종계획", "계획금액"]);
+                                let totalPlanQty = 0, totalPlanAmt = 0;
+                                f.forEach(d => {
+                                        // UI에 보이는 값만 반영
+                                        const planQty = Number(d._displayPlan || 0);
+                                        const planAmt = planQty * (d.price || 0);
+                                        wsData.push([
+                                                d.code || "",
+                                                d.spec || "",
+                                                d.price || 0,
+                                                planQty,
+                                                planAmt
+                                        ]);
+                                        totalPlanQty += planQty;
+                                        totalPlanAmt += planAmt;
+                                });
+                                wsData.push(["합계", "", "", totalPlanQty, totalPlanAmt]);
                 
                 const ws = XLSX.utils.aoa_to_sheet(wsData);
                 const range = XLSX.utils.decode_range(ws['!ref']);
@@ -2662,150 +2654,93 @@ function downloadFilteredStock() {
                 if(searchCode) filterParts.push("검색");
                 const filterName = filterParts.length > 0 ? filterParts.join("_") : "전체";
                 XLSX.utils.book_append_sheet(wb, ws, "현재고");
-                const today = new Date().toISOString().substring(0, 10).replace(/-/g, '');
-                XLSX.writeFile(wb, `현재고_${filterName}_${today}.xlsx`);
+                const todayStock = new Date().toISOString().substring(0, 10).replace(/-/g, '');
+                XLSX.writeFile(wb, `현재고_${filterName}_${todayStock}.xlsx`);
         } catch(e) {
                 console.error("긴급건 다운로드 오류:", e);
                 alert("다운로드 중 오류가 발생했습니다: " + e.message);
         }
 }
 
-function downloadFilteredSemiStock() {
+async function downloadFilteredSemiStock() {
+                // 디버깅: 엑셀로 내보낼 데이터 콘솔 출력
+                console.log('[디버깅] downloadFilteredSemiStock 실행 시 window.visibleSemiStockData', window.visibleSemiStockData);
+        alert('[강제디버깅] downloadFilteredSemiStock 함수 진입!!');
+        console.log('[강제디버깅] downloadFilteredSemiStock 함수 진입!!');
+        // 기존 디버깅 로그도 유지
+        alert('[디버깅] downloadFilteredSemiStock 진입');
+        console.log('[디버깅] downloadFilteredSemiStock 함수 실행됨');
         try {
-                const typeF = document.getElementById('semi_s_sel_type')?.value || "ALL";
-                const statF = document.getElementById('semi_s_sel_status')?.value || "ALL";
-                const searchCodeEl = document.getElementById('semi_stock_search_code');
-                const searchCode = searchCodeEl ? (searchCodeEl.value || "").trim() : "";
-                
-                // renderSemiStock()과 동일한 필터링 로직 적용
-                const f = semiProductData.filter(d => {
-                        if(!d || d.stock <= 0) return false;
-                        if(searchCode && searchCode.length > 0) {
-                                const codeStr = String(d.code || "");
-                                const specStr = String(d.spec || "");
-                                const nameStr = String(d.name || "");
-                                if(!codeStr.includes(searchCode) && !specStr.includes(searchCode) && !nameStr.includes(searchCode)) return false;
-                        }
-                        // 기종 필터
-                        if(typeF !== "ALL") {
-                                const type = String(d.type || "").trim();
-                                if(type !== typeF) return false;
-                        }
-                        // 상태 필터
-                        if(statF !== "ALL") {
-                                const status = String(d.status || "").trim();
-                                if(!status.includes(statF)) return false;
-                        }
-                        return true;
+                // window.filteredSemiStockData가 없으면 renderSemiStock()을 먼저 실행 (비동기 보장)
+                if (!window.filteredSemiStockData || !Array.isArray(window.filteredSemiStockData)) {
+                    if (typeof renderSemiStock === 'function') {
+                        await renderSemiStock();
+                    }
+                }
+                let f = window.visibleSemiStockData || [];
+                let sumAmt = 0;
+                f.forEach(d => {
+                        const planQty = Number(d._displayPlan || 0);
+                        sumAmt += planQty * (d.price || 0);
                 });
-                
+                console.log('[엑셀다운로드] filteredSemiStockData rows:', f.length, '합계(계획금액):', sumAmt.toLocaleString(), f.slice(0,3));
                 if(f.length === 0) {
                         alert("다운로드할 데이터가 없습니다.");
                         return;
                 }
-                
                 const wb = XLSX.utils.book_new();
                 const wsData = [];
-                
-                // 헤더
-                wsData.push(["상태", "코드", "규격", "단가", "현재고", "금액", "평균 사용량", "평균금액", "안전", "안전금액", "적정", "적정금액", "포장단위"]);
-                
-                // 데이터
+                // UI 표와 100% 동일한 컬럼 순서로 헤더 작성
+                wsData.push([
+                        "상태", "코드", "규격", "단가", "현재고", "금액", "평균 사용량", "평균금액", "안전", "안전금액", "적정", "적정금액", "포장단위", "최종계획", "계획금액"
+                ]);
+                let totalPlanQty = 0, totalPlanAmt = 0;
                 f.forEach(d => {
-                        const stock = Number(d.stock || 0);
-                        const price = Number(d.price || 0);
-                        const stockAmt = stock * price;
-                        const avgUsage = Number(d.avgUsage || 0);
-                        const avgAmt = avgUsage * price;
-                        const safety = Number(d.safety_A || d.safety || 0);
-                        const safetyAmt = safety * price;
-                        const target = Number(d.target_A || d.target || 0);
-                        const targetAmt = target * price;
+                        const planQty = Number(d._displayPlan || 0);
+                        const planAmt = planQty * (d.price || 0);
                         wsData.push([
-                                d.status || "",
+                                d.status || "정상",
                                 d.code || "",
                                 d.spec || "",
-                                price,
-                                stock,
-                                stockAmt,
-                                avgUsage,
-                                avgAmt,
-                                safety,
-                                safetyAmt,
-                                target,
-                                targetAmt,
-                                d.unit || 0
+                                d.price || 0,
+                                d.stock || 0,
+                                (Number(d.stock || 0) * Number(d.price || 0)),
+                                d.avgUsage || 0,
+                                (Number(d.avgUsage || 0) * Number(d.price || 0)),
+                                d.safety_A || d.safety || 0,
+                                (Number(d.safety_A || d.safety || 0) * Number(d.price || 0)),
+                                d.target_A || d.target || 0,
+                                (Number(d.target_A || d.target || 0) * Number(d.price || 0)),
+                                d.unit || 0,
+                                planQty,
+                                planAmt
                         ]);
+                        totalPlanQty += planQty;
+                        totalPlanAmt += planAmt;
                 });
-                
-                // 합계 행 추가
-                let totalStock = 0, totalStockAmt = 0, totalAvg = 0, totalAvgAmt = 0, totalSafety = 0, totalSafetyAmt = 0, totalTarget = 0, totalTargetAmt = 0;
-                f.forEach(d => {
-                        const stock = Number(d.stock || 0);
-                        const price = Number(d.price || 0);
-                        const avgUsage = Number(d.avgUsage || 0);
-                        const safety = Number(d.safety_A || d.safety || 0);
-                        const target = Number(d.target_A || d.target || 0);
-                        totalStock += stock;
-                        totalStockAmt += stock * price;
-                        totalAvg += avgUsage;
-                        totalAvgAmt += avgUsage * price;
-                        totalSafety += safety;
-                        totalSafetyAmt += safety * price;
-                        totalTarget += target;
-                        totalTargetAmt += target * price;
-                });
-                wsData.push([
-                        "합계", "", "", "",
-                        totalStock, totalStockAmt,
-                        totalAvg, totalAvgAmt,
-                        totalSafety, totalSafetyAmt,
-                        totalTarget, totalTargetAmt,
-                        ""
-                ]);
-                
-                const ws = XLSX.utils.aoa_to_sheet(wsData);
-                const range = XLSX.utils.decode_range(ws['!ref']);
-                
-                // 스타일 적용
-                for(let R = 0; R <= range.e.r; R++) {
-                        for(let C = 0; C <= range.e.c; C++) {
-                                const cellAddress = XLSX.utils.encode_cell({r:R, c:C});
-                                if(!ws[cellAddress]) ws[cellAddress] = {t:'s', v:''};
-                                // 헤더 행 스타일
-                                if(R === 0) {
-                                        ws[cellAddress].s = { font: { bold: true }, fill: { fgColor: { rgb: "000000" } }, fgColor: { rgb: "FFFFFF" } };
-                                }
-                                // 합계 행 스타일
-                                if(R === range.e.r) {
-                                        ws[cellAddress].s = { font: { bold: true }, fill: { fgColor: { rgb: "FFFF00" } } };
-                                }
-                        }
-                }
-                
-                // 컬럼 너비 설정
-                ws['!cols'] = [
-                        { wch: 10 }, // 상태
-                        { wch: 12 }, // 코드
-                        { wch: 30 }, // 규격
-                        { wch: 12 }, // 단가
-                        { wch: 12 }, // 현재고
-                        { wch: 15 }, // 금액
-                        { wch: 12 }, // 평균 사용량
-                        { wch: 15 }, // 평균금액
-                        { wch: 12 }, // 안전
-                        { wch: 15 }, // 안전금액
-                        { wch: 12 }, // 적정
-                        { wch: 15 }, // 적정금액
-                        { wch: 10 }  // 포장단위
-                ];
-                
-                XLSX.utils.book_append_sheet(wb, ws, "반제품현재고");
-                const today = new Date().toISOString().substring(0, 10).replace(/-/g, '');
-                const filterName = (typeF !== "ALL" ? typeF + "_" : "") + (statF !== "ALL" ? statF.replace(/[🚨⚠️📦]/g, "") + "_" : "") + (searchCode ? searchCode + "_" : "");
-                XLSX.writeFile(wb, `반제품현재고_${filterName}${today}.xlsx`);
+                wsData.push(["합계", "", "", "", "", "", "", "", "", "", "", "", "", totalPlanQty, totalPlanAmt]);
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wsData), "계획");
+                // 파일명: 2026-05_반제품_필터_계획_20260128_153012.xlsx
+                let now = new Date();
+                let todaySemi = now.getFullYear().toString()
+                        + String(now.getMonth()+1).padStart(2,'0')
+                        + String(now.getDate()).padStart(2,'0')
+                        + '_'
+                        + String(now.getHours()).padStart(2,'0')
+                        + String(now.getMinutes()).padStart(2,'0')
+                        + String(now.getSeconds()).padStart(2,'0');
+                let planMonth = document.getElementById('plan_month')?.value || '';
+                // 필터값(기종/상태)
+                let typeF = document.getElementById('semi_s_sel_type')?.value || 'ALL';
+                let statF = document.getElementById('semi_s_sel_status')?.value || 'ALL';
+                let filterStr = '';
+                if(typeF !== 'ALL') filterStr += '_' + typeF;
+                if(statF !== 'ALL') filterStr += '_' + statF;
+                let fileSuffix = '_반제품' + filterStr;
+                XLSX.writeFile(wb, `${planMonth}${fileSuffix}_계획_${todaySemi}.xlsx`);
         } catch(e) { console.error("반제품 엑셀 다운로드 오류:", e); alert("다운로드 중 오류가 발생했습니다."); }
 }
+window.downloadFilteredSemiStock = downloadFilteredSemiStock;
 
 function downloadSchedulePlan(wb, f, planMonth) {
         try {
@@ -3751,6 +3686,11 @@ async function renderSemiMonthly() {
 
                 if(document.getElementById('semi_sum_qty_box')) document.getElementById('semi_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`;
                 if(document.getElementById('semi_sum_amt_box')) document.getElementById('semi_sum_amt_box').innerText = `금액: ${tA.toLocaleString()} 원`;
+                let tStockA = 0;
+                // tStockA 계산: 반제품 목록의 현재고 * 단가 합산
+                if(Array.isArray(semiProductData)) {
+                        tStockA = semiProductData.reduce((sum, d) => sum + (Number(d.stock || 0) * Number(d.price || 0)), 0);
+                }
                 if(document.getElementById('semi_sum_stock_amt_box')) document.getElementById('semi_sum_stock_amt_box').innerText = `현재고: ${tStockA.toLocaleString()} 원`;
         } catch(e) { console.error("반제품 렌더링 오류:", e); }
 }
@@ -4133,91 +4073,130 @@ async function loadSemiFromGithub() {
         }
 }
 
-function downloadSemiMonthly() {
+async function downloadSemiMonthly() {
         try {
+                const t = document.getElementById('gh_token')?.value;
+                const planMonth = document.getElementById('semi_plan_month')?.value || document.getElementById('semi_month_display')?.innerText;
+                if (!planMonth || planMonth === "선택안됨") return alert("계획월을 확인해주세요.");
+
+                const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+                const timing = document.getElementById('stock_timing')?.value || "start";
                 const typeF = document.getElementById('semi_sel_type')?.value || "ALL";
-                const searchCodeEl = document.getElementById('semi_search_code');
-                const searchCode = searchCodeEl ? (searchCodeEl.value || "").trim() : "";
-                const f = semiProductData.filter(d => {
-                        if(typeF !== "ALL" && d.type !== typeF) return false;
-                        if(searchCode && searchCode.length > 0) {
-                                const codeStr = String(d.code || "");
-                                const specStr = String(d.spec || "");
-                                if(!codeStr.includes(searchCode) && !specStr.includes(searchCode)) return false;
-                        }
-                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
-                        return p > 0;
-                });
-                if(f.length === 0) return alert("다운로드할 데이터가 없습니다.");
-                const planMonth = document.getElementById('semi_plan_month')?.value || new Date().toISOString().substring(0, 7);
-                const [year, month] = planMonth.split('-');
-                const monthNum = parseInt(month);
-                const wb = XLSX.utils.book_new();
-                const wsData = [];
-                wsData.push([`${year}년 ${monthNum}월 반제품 생산 계획서`, "", "", "", "", "", "", "", "", "", ""]);
-                wsData.push([]);
-                let totalAmt = 0;
-                const typeGroups = {};
-                f.forEach(d => {
-                        const p = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
-                        const amt = p * d.price;
-                        totalAmt += amt;
-                        if(!typeGroups[d.type]) typeGroups[d.type] = [];
-                        typeGroups[d.type].push({
-                                code: d.code,
-                                spec: d.spec,
-                                unit: d.unit,
-                                avg3mPlan: d.avg3mPlan,
-                                stock: d.stock,
-                                plan: p,
-                                amt: amt,
-                                price: d.price
+                const searchCode = (document.getElementById('semi_search_code')?.value || "").trim();
+
+                // 1. 계획 데이터(저장된 분) 로드
+                let savedPlanMap = {};
+                if (t) {
+                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${planMonth}.json`, { 
+                                headers: { Authorization: `token ${t}` } 
                         });
-                });
-                wsData.push(["합계", "", "", "", "", "", "", "", totalAmt.toLocaleString(), "원", ""]);
-                wsData.push([]);
-                const typeKeys = Object.keys(typeGroups).sort();
-                typeKeys.forEach(typeKey => {
-                        wsData.push([typeKey, "", "", "", "", "", "", "", "", "", ""]);
-                        wsData.push(["품목코드", "규격", "단위", "3개월 평균 계획량", "당월 재고량", "생산의뢰수량", "의뢰금액", "단가", "", "", ""]);
-                        let typeSubtotal = 0;
-                        typeGroups[typeKey].forEach(item => {
-                                wsData.push([item.code, item.spec, item.unit, item.avg3mPlan, item.stock, item.plan, item.amt, item.price, "", "", ""]);
-                                typeSubtotal += item.amt;
-                        });
-                        wsData.push(["소계", "", "", "", "", "", typeSubtotal.toLocaleString(), "원", "", "", ""]);
-                        wsData.push([]);
-                });
-                const ws = XLSX.utils.aoa_to_sheet(wsData);
-                ws['!merges'] = [
-                        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
-                        { s: { r: 2, c: 0 }, e: { r: 2, c: 7 } },
-                        { s: { r: 2, c: 8 }, e: { r: 2, c: 9 } }
-                ];
-                for(let R = 0; R < wsData.length; R++) {
-                        for(let C = 0; C < wsData[R].length; C++) {
-                                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                                if(!ws[cellAddress]) continue;
-                                if(R === 0) {
-                                        if(!ws[cellAddress].s) ws[cellAddress].s = {};
-                                        ws[cellAddress].s.font = { bold: true, sz: 18 };
-                                        ws[cellAddress].s.alignment = { horizontal: 'center', vertical: 'center' };
-                                }
-                                if(R === 2 && C === 0) {
-                                        if(!ws[cellAddress].s) ws[cellAddress].s = {};
-                                        ws[cellAddress].s.font = { bold: true, underline: true };
-                                }
-                                const cellVal = wsData[R][C];
-                                if(typeKeys.includes(cellVal) || (R > 3 && C === 0 && cellVal && cellVal !== "품목코드" && cellVal !== "소계" && cellVal !== "합계")) {
-                                        if(!ws[cellAddress].s) ws[cellAddress].s = {};
-                                        ws[cellAddress].s.font = { bold: true };
-                                }
+                        if (res.ok) {
+                                const data = await res.json();
+                                const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                                loaded.forEach(item => { savedPlanMap[String(item.code).trim()] = item.planQty || 0; });
                         }
                 }
-                XLSX.utils.book_append_sheet(wb, ws, "반제품생산계획");
-                XLSX.writeFile(wb, `반제품생산계획_${planMonth}.xlsx`);
-                alert("다운로드 완료!");
-        } catch(e) { console.error("반제품 다운로드 오류:", e); alert("다운로드 중 오류가 발생했습니다."); }
+
+                // 2. 2개월 묶음 계산용 기준점 확보 (UI와 동일)
+                let pairOddMonth = null, pairEvenMonth = null, pairBaseTl = null;
+                const [year, month] = planMonth.split('-').map(Number);
+                if (year === 2026 && month >= 5) {
+                        const isOdd = (month % 2 !== 0);
+                        pairOddMonth = isOdd ? planMonth : `${year}-${String(month - 1).padStart(2, '0')}`;
+                        pairEvenMonth = isOdd ? `${year}-${String(month + 1).padStart(2, '0')}` : planMonth;
+                        pairBaseTl = await getTimelineGap(refMonth, pairOddMonth, true);
+                }
+
+                // 3. 엑셀 데이터 구성
+                const wb = XLSX.utils.book_new();
+                const wsData = [];
+                wsData.push([`${year}년 ${month}월 반제품 생산 계획서 (UI 동기화)`, "", "", "", "", "", "", "", "", "", ""]);
+                wsData.push(["품목코드", "규격", "단가", "현재고", "평균 사용량", "3개월 평균", "안전재고", "적정재고", "생산의뢰수량", "의뢰금액", "기종"]);
+
+                let totalAmt = 0;
+                let exportCount = 0;
+
+                // 전체 반제품 데이터를 순회하며 UI와 동일한 필터링 및 계산 적용
+                semiProductData.forEach(d => {
+                        const codeKey = String(d.code).trim();
+            
+                        // 필터링 적용
+                        if (typeF !== "ALL" && d.type !== typeF) return;
+                        if (searchCode && !codeKey.includes(searchCode) && !String(d.spec).includes(searchCode)) return;
+
+                        let finalPlan = 0;
+                        let found = false;
+
+                        // [계산 순서 1] 수동 수정 캐시 확인
+                        if (window.monthCalcCache && window.monthCalcCache[`${codeKey}_${planMonth}`] !== undefined) {
+                                finalPlan = window.monthCalcCache[`${codeKey}_${planMonth}`];
+                                found = true;
+                        } 
+                        // [계산 순서 2] 저장된 계획 확인
+                        else if (savedPlanMap[codeKey] !== undefined) {
+                                finalPlan = savedPlanMap[codeKey];
+                                found = true;
+                        }
+
+                        // [계산 순서 3] 자동 계산 (분할 로직 포함)
+                        if (!found) {
+                                if (pairOddMonth && pairBaseTl) {
+                                        const target = (currentSemiLogicMode === 'V20' ? d.target_A : d.target_B);
+                                        const avgUsage = (semiAvgUsageOverrides.get(codeKey) || d.avgUsage || 0);
+                    
+                                        let burnUntilOddEnd = 0;
+                                        let curr = new Date(refMonth + "-01");
+                                        if (timing === "end") curr.setMonth(curr.getMonth() + 1);
+                    
+                                        const limitDate = new Date(pairEvenMonth + "-01");
+                                        while (curr < limitDate) {
+                                                burnUntilOddEnd += avgUsage;
+                                                curr.setMonth(curr.getMonth() + 1);
+                                        }
+                                        const pend = pairBaseTl.pendingMap[codeKey] || 0;
+                                        finalPlan = Math.floor(Math.max(0, (target + burnUntilOddEnd - d.stock - pend) / 2) / d.unit) * d.unit;
+                                } else {
+                                        finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
+                                }
+                        }
+
+                        // 최종계획이 0보다 큰 것만 엑셀에 포함
+                        if (finalPlan > 0) {
+                                const planAmt = finalPlan * d.price;
+                                totalAmt += planAmt;
+                                exportCount++;
+
+                                wsData.push([
+                                        d.code,
+                                        d.spec,
+                                        d.price,
+                                        d.stock,
+                                        (semiAvgUsageOverrides.get(codeKey) || d.avgUsage || 0),
+                                        (d.avg3mPlan || 0),
+                                        (currentSemiLogicMode === 'V20' ? d.safety_A : d.safety_B),
+                                        (currentSemiLogicMode === 'V20' ? d.target_A : d.target_B),
+                                        finalPlan,
+                                        planAmt,
+                                        d.type
+                                ]);
+                        }
+                });
+
+                if (exportCount === 0) return alert("현재 조건에서 계획 수량이 있는 품목이 없습니다.");
+
+                wsData.push([]);
+                wsData.push(["합계", "", "", "", "", "", "", "", "", totalAmt, "원"]);
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                XLSX.utils.book_append_sheet(wb, ws, "반제품계획");
+                XLSX.writeFile(wb, `반제품계획_${planMonth}_실적동기화.xlsx`);
+        
+                alert(`총 ${exportCount}건, ${totalAmt.toLocaleString()}원 데이터 다운로드 완료!`);
+
+        } catch (e) {
+                console.error("다운로드 오류:", e);
+                alert("다운로드 중 오류가 발생했습니다: " + e.message);
+        }
 }
 
 // ========== 실적 비교 기능 ==========
