@@ -1129,113 +1129,120 @@ async function renderSemiStock() {
 }
 
 async function renderMonthly() {
-        try {
-                const body = document.getElementById('monthly_body'); if(!body) return; body.innerHTML = "";
-                const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
-                const searchCode = (document.getElementById('m_search_code')?.value || "").trim();
-                const planMonth = document.getElementById('plan_month')?.value;
-                const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
-                const timing = document.getElementById('stock_timing')?.value || "start";
-                
-                let savedPlanMap = {};
-                if(planMonth) savedPlanMap = planDataCache[planMonth] || await loadPlanDataForMonth(planMonth, false);
+    try {
+        const body = document.getElementById('monthly_body'); 
+        if(!body) return;
+        const container = document.querySelector('#monthly-pane .table-container');
 
-                let pairOddMonth = null, pairEvenMonth = null, pairBaseTl = null;
-                if(planMonth) {
-                        const [year, month] = planMonth.split('-').map(Number);
-                        if(year === 2026 && month >= 5) {
-                                // 2개월 짝꿍 설정 (5-6, 7-8...)
-                                const isOdd = (month % 2 !== 0);
-                                pairOddMonth = isOdd ? planMonth : `${year}-${String(month-1).padStart(2,'0')}`;
-                                pairEvenMonth = isOdd ? `${year}-${String(month+1).padStart(2,'0')}` : planMonth;
-                                // 기입고(Pending)는 항상 홀수달(M) 1일 기준 = M-1월 말까지의 계획 합계
-                                pairBaseTl = await getTimelineGap(refMonth, pairOddMonth);
-                        }
+        // [제민 패치] 현재 상태 저장 (스크롤 위치 & 포커스)
+        const scrollPos = container ? container.scrollTop : 0;
+        const focusedId = document.activeElement ? document.activeElement.id : null;
+
+        const wpF = document.getElementById('m_sel_wp')?.value || "ALL";
+        const searchCode = (document.getElementById('m_search_code')?.value || "").trim();
+        const planMonth = document.getElementById('plan_month')?.value;
+        const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+        const timing = document.getElementById('stock_timing')?.value || "start";
+        
+        let savedPlanMap = {};
+        if(planMonth) savedPlanMap = planDataCache[planMonth] || await loadPlanDataForMonth(planMonth, false);
+
+        // 2개월 묶음 계산용
+        let pairOddMonth = null, pairEvenMonth = null, pairBaseTl = null;
+        if(planMonth) {
+            const [year, month] = planMonth.split('-').map(Number);
+            if(year === 2026 && month >= 5) {
+                const isOdd = (month % 2 !== 0);
+                pairOddMonth = isOdd ? planMonth : `${year}-${String(month-1).padStart(2,'0')}`;
+                pairEvenMonth = isOdd ? `${year}-${String(month+1).padStart(2,'0')}` : planMonth;
+                pairBaseTl = await getTimelineGap(refMonth, pairOddMonth);
+            }
+        }
+        
+        const planBasis = document.querySelector('input[name="planBasis"]:checked')?.value || 'safety';
+        let tQ = 0, tA = 0; 
+        const f = processedData.filter(d => {
+            if(!d || d.wp === "기타") return false;
+            if(searchCode && !String(d.code).includes(searchCode) && !String(d.name).includes(searchCode) && !String(d.spec).includes(searchCode)) return false;
+            if(wpF === "CHINA") return d.wp.includes("중국");
+            if(wpF === "NO_CHINA") return !d.wp.includes("중국") && d.category === "계획";
+            if(wpF !== "ALL" && d.wp !== wpF) return false;
+            return d.wp.includes("중국") || d.category === "계획";
+        });
+
+        body.innerHTML = ""; 
+        window.visibleMonthlyData = [];
+
+        for(const d of f) {
+            const codeKey = String(d.code).trim();
+            const codeNum = String(Number(d.code)) || codeKey;
+
+            // [제민 패치] 최근 3개월(판매) 평균 계산 강화
+            let recent3SalesArr = [];
+            if(refMonth) {
+                const [refY, refM] = refMonth.split('-').map(Number);
+                for(let i=1; i<=3; i++) {
+                    let y = refY, m = refM - i;
+                    if(m <= 0) { y -= 1; m += 12; }
+                    let val = 0;
+                    const yearData = rawData.salesByYear[y];
+                    if(yearData) {
+                        // 코드 형식 매칭 시도 (원본, 트림, 숫자형)
+                        if(yearData[codeKey] !== undefined) val = yearData[codeKey][m-1];
+                        else if(yearData[d.code] !== undefined) val = yearData[d.code][m-1];
+                        else if(yearData[codeNum] !== undefined) val = yearData[codeNum][m-1];
+                    }
+                    recent3SalesArr.push(Number(val) || 0);
                 }
-                
-                // 계획 기준 선택값 읽기
-                const planBasis = document.querySelector('input[name="planBasis"]:checked')?.value || 'safety';
-                let tQ = 0, tA = 0; 
-                const f = processedData.filter(d => {
-                        if(!d || d.wp === "기타") return false;
-                        if(searchCode && !String(d.code).includes(searchCode) && !String(d.name).includes(searchCode) && !String(d.spec).includes(searchCode)) return false;
-                        if(wpF === "CHINA") return d.wp.includes("중국");
-                        if(wpF === "NO_CHINA") return !d.wp.includes("중국") && d.category === "계획";
-                        if(wpF !== "ALL" && d.wp !== wpF) return false;
-                        return d.wp.includes("중국") || d.category === "계획";
-                });
+            }
+            d.avg3m = Math.round(recent3SalesArr.reduce((a,b)=>a+b,0)/3);
 
-                window.visibleMonthlyData = [];
-                for(const d of f) {
-                        const codeKey = String(d.code).trim();
-                        let finalPlan = 0, sourceFound = false;
+            let finalPlan = 0, sourceFound = false;
+            if(window.monthCalcCache && window.monthCalcCache[`${codeKey}_${planMonth}`] !== undefined) {
+                finalPlan = window.monthCalcCache[`${codeKey}_${planMonth}`]; sourceFound = true;
+            } else if(savedPlanMap[codeKey] !== undefined) {
+                finalPlan = savedPlanMap[codeKey]; sourceFound = true;
+            }
 
-                        // 최근 3개월(판매) 평균 계산
-                        let recent3SalesArr = [];
-                        if(refMonth) {
-                                const [refY, refM] = refMonth.split('-').map(Number);
-                                for(let i=1; i<=3; i++) {
-                                        let y = refY, m = refM - i;
-                                        if(m <= 0) { y -= 1; m += 12; }
-                                        let val = 0;
-                                        if(rawData.salesByYear[y] && rawData.salesByYear[y][d.code]) {
-                                                val = rawData.salesByYear[y][d.code][m-1] || 0;
-                                        }
-                                        recent3SalesArr.push(val);
-                                }
-                        }
-                                // 기준값 선택
-                                const basisVal = planBasis === 'safety' ? (currentLogicMode==='V20'?d.safety_A:d.safety_B) : (currentLogicMode==='V20'?d.target_A:d.target_B);
-                        d.avg3m = recent3SalesArr.length > 0 ? Math.round(recent3SalesArr.reduce((a,b)=>a+b,0)/recent3SalesArr.length) : 0;
-
-                        if(window.monthCalcCache && window.monthCalcCache[`${codeKey}_${planMonth}`] !== undefined) {
-                                finalPlan = window.monthCalcCache[`${codeKey}_${planMonth}`]; sourceFound = true;
-                        } else if(savedPlanMap[codeKey] !== undefined) {
-                                finalPlan = savedPlanMap[codeKey]; sourceFound = true;
-                        }
-
-                        if(!sourceFound) {
-                                // 중국 생산 제품 2개월 묶음 공식 적용
-                                        if(d.wp.includes("중국") && pairOddMonth && pairBaseTl) {
-                                            // 2개월 묶음 공식: (기준값 + 소진 - 현재고 - 기입고) / 2 → 포장단위로 내림
-                                            // 기준값: 안전재고/적정재고 선택
-                                            // 소진: 최근 3개월 평균 × 개월수
-                                            // 기입고: pairBaseTl.pendingMap[codeKey] || 0
-                                            const planYear = Number(pairEvenMonth.split('-')[0]);
-                                            const planMonthNum = Number(pairEvenMonth.split('-')[1]);
-                                            const refYear = Number(refMonth.split('-')[0]);
-                                            const refMonthNum = Number(refMonth.split('-')[1]);
-                                            let monthDiff = (planYear - refYear) * 12 + (planMonthNum - refMonthNum);
-                                            if(timing === "end") monthDiff -= 1;
-                                            // 최근 3개월 평균
-                                            const avgVal = d.avg3m;
-                                            let burnUntilOddEnd = avgVal * monthDiff;
-                                            d.burn = burnUntilOddEnd;
-                                            // 기입고(pending)
-                                            const pend = pairBaseTl.pendingMap[codeKey] || 0;
-                                            finalPlan = Math.floor(Math.max(0, (basisVal + burnUntilOddEnd - d.stock - pend) / 2) / d.unit) * d.unit;
-                                        } else {
-                                            finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
-                                        }
-                        }
-                        // 포장단위 내림 보장
-                        if(finalPlan > 0 && d.unit > 0) finalPlan = Math.floor(finalPlan / d.unit) * d.unit;
-                        d._displayPlan = finalPlan;
-                        tQ += finalPlan; tA += (finalPlan * d.price);
-                        window.visibleMonthlyData.push({...d});
+            if(!sourceFound) {
+                const basisVal = planBasis === 'safety' ? (currentLogicMode==='V20'?d.safety_A:d.safety_B) : (currentLogicMode==='V20'?d.target_A:d.target_B);
+                if(d.wp.includes("중국") && pairOddMonth && pairBaseTl) {
+                    const planYear = Number(pairEvenMonth.split('-')[0]);
+                    const planMonthNum = Number(pairEvenMonth.split('-')[1]);
+                    const refYear = Number(refMonth.split('-')[0]);
+                    const refMonthNum = Number(refMonth.split('-')[1]);
+                    let monthDiff = (planYear - refYear) * 12 + (planMonthNum - refMonthNum);
+                    if(timing === "end") monthDiff -= 1;
+                    let burnUntilOddEnd = d.avg3m * monthDiff;
+                    const pend = pairBaseTl.pendingMap[codeKey] || 0;
+                    finalPlan = Math.floor(Math.max(0, (basisVal + burnUntilOddEnd - d.stock - pend) / 2) / d.unit) * d.unit;
+                } else {
+                    finalPlan = (currentLogicMode === 'V20' ? d.plan_A : d.plan_B);
                 }
-                
-                if(document.getElementById('m_sum_qty_box')) document.getElementById('m_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`; 
-                if(document.getElementById('m_sum_amt_box')) document.getElementById('m_sum_amt_box').innerText = `금액: ${tA.toLocaleString()} 원`;
-                
-                f.slice(0, displayLimits.monthly).forEach(d => {
-                        const tr = document.createElement('tr'); 
-                        const p = d._displayPlan;
-                        const t = (currentLogicMode==='V20'?d.target_A:d.target_B), s = (currentLogicMode==='V20'?d.safety_A:d.safety_B);
-                        tr.innerHTML = `<td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem('${d.code}')">×</button></td><td>${d.code}</td><td>${d.name}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="fw-bold">${d.avg.toLocaleString()}</td><td class="bg-info text-white">${d.avg3m.toLocaleString()}</td><td class="bg-warning text-dark">${(d.avg3mPlan||0).toLocaleString()}</td><td class="bg-success text-white">${d.minS.toLocaleString()}</td><td class="bg-success text-white">${d.maxS.toLocaleString()}</td><td class="text-danger fw-bold">${d.burn.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateUnit('${d.code}', this.value)"></td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="table-primary"><input type="number" class="plan-input" value="${p}" onchange="updatePlanQty('${d.code}', this.value)"><button class="btn btn-sm btn-outline-primary ms-1" onclick="copyPlanToNextMonth('${d.code}')">📋</button></td><td class="fw-bold">${(p*d.price).toLocaleString()}</td>`;
-                        body.appendChild(tr);
-                });
-        } catch(e) { console.error("완제품 렌더링 오류:", e); }
+            }
+            if(finalPlan > 0 && d.unit > 0) finalPlan = Math.floor(finalPlan / d.unit) * d.unit;
+            d._displayPlan = finalPlan;
+            tQ += finalPlan; tA += (finalPlan * d.price);
+            window.visibleMonthlyData.push({...d});
+
+            const tr = document.createElement('tr'); 
+            const t = (currentLogicMode==='V20'?d.target_A:d.target_B), s = (currentLogicMode==='V20'?d.safety_A:d.safety_B);
+            
+            // 각 input에 품목별 고유 ID를 부여하여 포커스를 추적함
+            tr.innerHTML = `<td class="sticky-col"><button class="btn btn-outline-danger btn-sm" onclick="deleteItem('${d.code}')">×</button></td><td>${d.code}</td><td>${d.name}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="fw-bold">${d.avg.toLocaleString()}</td><td class="bg-info text-white">${d.avg3m.toLocaleString()}</td><td class="bg-warning text-dark">${(d.avg3mPlan||0).toLocaleString()}</td><td class="bg-success text-white">${d.minS.toLocaleString()}</td><td class="bg-success text-white">${d.maxS.toLocaleString()}</td><td class="text-danger fw-bold">${d.burn.toLocaleString()}</td><td>${s.toLocaleString()}</td><td>${t.toLocaleString()}</td><td class="bg-light"><input type="number" id="unit-${d.code}" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateUnit('${d.code}', this.value)"></td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="table-primary"><input type="number" id="plan-${d.code}" class="plan-input" value="${finalPlan}" onchange="updatePlanQty('${d.code}', this.value)"><button class="btn btn-sm btn-outline-primary ms-1" onclick="copyPlanToNextMonth('${d.code}')">📋</button></td><td class="fw-bold">${(finalPlan*d.price).toLocaleString()}</td>`;
+            body.appendChild(tr);
+        }
+        
+        if(document.getElementById('m_sum_qty_box')) document.getElementById('m_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`; 
+        if(document.getElementById('m_sum_amt_box')) document.getElementById('m_sum_amt_box').innerText = `금액: ${tA.toLocaleString()} 원`;
+        
+        // [제민 패치] 상태 복구 (스크롤 위치 & 포커스 재지정)
+        if(container) container.scrollTop = scrollPos;
+        if(focusedId) {
+            const targetEl = document.getElementById(focusedId);
+            if(targetEl) targetEl.focus();
+        }
+    } catch(e) { console.error("완제품 렌더링 오류:", e); }
 }
 
 function updatePlanQty(c, v) { 
@@ -3605,94 +3612,114 @@ async function updateSemiSafetyTarget() {
 }
 
 async function renderSemiMonthly() {
-        try {
-                const body = document.getElementById('semi_monthly_body'); if(!body) return; body.innerHTML = "";
-                let planMonth = document.getElementById('semi_plan_month')?.value || document.getElementById('semi_month_display')?.innerText;
-                if(planMonth === "선택안됨" || !planMonth) return;
-                const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
-                const timing = document.getElementById('stock_timing')?.value || "start";
-                
-                let savedPlanMap = {};
-                const t = document.getElementById('gh_token')?.value;
-                if(t) {
-                        const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${planMonth}.json`, { headers: { Authorization: `token ${t}` } });
-                        if(res.ok) {
-                                const data = await res.json();
-                                const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-                                loaded.forEach(item => { savedPlanMap[String(item.code).trim()] = item.planQty || 0; });
-                        }
+    try {
+        const pane = document.getElementById('semi-monthly-pane');
+        const container = pane.querySelector('.table-container');
+        const body = document.getElementById('semi_monthly_body');
+        if(!body) return;
+
+        // [제민 패치] 현재 상태 저장 (스크롤 위치 & 포장 아이디)
+        const scrollPos = container ? container.scrollTop : 0;
+        const focusedId = document.activeElement ? document.activeElement.id : null;
+
+        let planMonth = document.getElementById('semi_plan_month')?.value || document.getElementById('semi_month_display')?.innerText;
+        if(planMonth === "선택안됨" || !planMonth) return;
+        const refMonth = document.getElementById('ref_month')?.value || new Date().toISOString().substring(0, 7);
+        const timing = document.getElementById('stock_timing')?.value || "start";
+        
+        let savedPlanMap = {};
+        const t = document.getElementById('gh_token')?.value;
+        if(t) {
+            const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/data/semi_plan_${planMonth}.json`, { headers: { Authorization: `token ${t}` } });
+            if(res.ok) {
+                const data = await res.json();
+                const loaded = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                loaded.forEach(item => { savedPlanMap[String(item.code).trim()] = item.planQty || 0; });
+            }
+        }
+
+        let pairOddMonth = null, pairEvenMonth = null, pairBaseTl = null;
+        const [year, month] = planMonth.split('-').map(Number);
+        if(year === 2026 && month >= 5) {
+            const isOdd = (month % 2 !== 0);
+            pairOddMonth = isOdd ? planMonth : `${year}-${String(month-1).padStart(2,'0')}`;
+            pairEvenMonth = isOdd ? `${year}-${String(month+1).padStart(2,'0')}` : planMonth;
+            pairBaseTl = await getTimelineGap(refMonth, pairOddMonth, true);
+        }
+
+        const searchCode = (document.getElementById('semi_search_code')?.value || "").trim();
+        let tQ = 0, tA = 0;
+
+        body.innerHTML = ""; // 초기화
+
+        semiProductData.filter(d => {
+            if(searchCode && !String(d.code).includes(searchCode) && !String(d.spec).includes(searchCode)) return false;
+            return true;
+        }).forEach(d => {
+            const codeKey = String(d.code).trim();
+            let finalPlan = 0, found = false;
+
+            if(window.monthCalcCache && window.monthCalcCache[`${codeKey}_${planMonth}`] !== undefined) {
+                finalPlan = window.monthCalcCache[`${codeKey}_${planMonth}`]; found = true;
+            } else if(savedPlanMap[codeKey] !== undefined) {
+                finalPlan = savedPlanMap[codeKey]; found = true;
+            }
+
+            if(!found) {
+                if(pairOddMonth && pairBaseTl) {
+                    const target = (currentSemiLogicMode === 'V20' ? d.target_A : d.target_B);
+                    const avgUsage = (semiAvgUsageOverrides.get(codeKey) || d.avgUsage || 0);
+                    let burnUntilOddEnd = 0;
+                    let curr = new Date(refMonth + "-01");
+                    if(timing === "end") curr.setMonth(curr.getMonth() + 1);
+                    const limitDate = new Date(pairEvenMonth + "-01");
+                    while(curr < limitDate) { burnUntilOddEnd += avgUsage; curr.setMonth(curr.getMonth() + 1); }
+                    const pend = pairBaseTl.pendingMap[codeKey] || 0;
+                    finalPlan = Math.floor(Math.max(0, (target + burnUntilOddEnd - d.stock - pend) / 2) / d.unit) * d.unit;
+                } else {
+                    finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
                 }
+            }
 
-                // 2개월 묶음 계산 고정 기준점 설정
-                let pairOddMonth = null, pairEvenMonth = null, pairBaseTl = null;
-                const [year, month] = planMonth.split('-').map(Number);
-                if(year === 2026 && month >= 5) {
-                        const isOdd = (month % 2 !== 0);
-                        pairOddMonth = isOdd ? planMonth : `${year}-${String(month-1).padStart(2,'0')}`;
-                        pairEvenMonth = isOdd ? `${year}-${String(month+1).padStart(2,'0')}` : planMonth;
-                        // 기입고(Pending)는 항상 홀수달(M) 1일 기준 고정
-                        pairBaseTl = await getTimelineGap(refMonth, pairOddMonth, true);
-                }
+            d._displayPlan = finalPlan;
+            tQ += finalPlan; tA += (finalPlan * d.price);
 
-                const searchCode = (document.getElementById('semi_search_code')?.value || "").trim();
-                let tQ = 0, tA = 0;
+            const tr = document.createElement('tr');
+            const s_val = (currentSemiLogicMode === 'V20' ? d.safety_A : d.safety_B);
+            const t_val = (currentSemiLogicMode === 'V20' ? d.target_A : d.target_B);
+            
+            // [제민 패치] 각 input에 고유 ID 부여 (id="avg-${d.code}" 등)
+            tr.innerHTML = `
+                <td>${d.code}</td>
+                <td>${d.spec}</td>
+                <td>${d.price.toLocaleString()}</td>
+                <td class="fw-bold">${d.stock.toLocaleString()}</td>
+                <td class="text-info bg-light"><input type="number" id="avg-${d.code}" class="form-control form-control-sm" style="width:80px; text-align:center;" value="${semiAvgUsageOverrides.get(codeKey) || d.avgUsage || 0}" onchange="updateSemiAvgUsage('${d.code}', this.value)"></td>
+                <td class="bg-info text-white">${(d.avg3mUsage || 0).toLocaleString()}</td>
+                <td class="bg-warning text-dark">${(d.avg3mPlan || 0).toLocaleString()}</td>
+                <td>${s_val.toLocaleString()}</td>
+                <td>${t_val.toLocaleString()}</td>
+                <td class="bg-light"><input type="number" id="unit-${d.code}" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateSemiUnit('${d.code}', this.value)"></td>
+                <td class="text-danger fw-bold">${(d.burn || 0).toLocaleString()}</td>
+                <td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td>
+                <td class="table-primary"><input type="number" id="plan-${d.code}" class="plan-input" value="${finalPlan}" onchange="updateSemiPlanQty('${d.code}', this.value)"><button class="btn btn-sm btn-outline-primary ms-1" onclick="copySemiPlanToNextMonth('${d.code}')">📋</button></td>
+                <td class="text-success fw-bold">${(finalPlan * d.price).toLocaleString()}</td>
+            `;
+            body.appendChild(tr);
+        });
 
-                semiProductData.filter(d => {
-                        if(searchCode && !String(d.code).includes(searchCode) && !String(d.spec).includes(searchCode)) return false;
-                        return true;
-                }).forEach(d => {
-                        const codeKey = String(d.code).trim();
-                        let finalPlan = 0, found = false;
+        // 합계 박스 업데이트
+        if(document.getElementById('semi_sum_qty_box')) document.getElementById('semi_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`;
+        if(document.getElementById('semi_sum_amt_box')) document.getElementById('semi_sum_amt_box').innerText = `금액: ${tA.toLocaleString()} 원`;
+        
+        // [제민 패치] 상태 복구 (스크롤 & 포커스)
+        if(container) container.scrollTop = scrollPos;
+        if(focusedId) {
+            const targetEl = document.getElementById(focusedId);
+            if(targetEl) targetEl.focus();
+        }
 
-                        if(window.monthCalcCache && window.monthCalcCache[`${codeKey}_${planMonth}`] !== undefined) {
-                                finalPlan = window.monthCalcCache[`${codeKey}_${planMonth}`]; found = true;
-                        } else if(savedPlanMap[codeKey] !== undefined) {
-                                finalPlan = savedPlanMap[codeKey]; found = true;
-                        }
-
-                        if(!found) {
-                                // 반제품 전체 2개월 묶음 계산 (공식 적용)
-                                if(pairOddMonth && pairBaseTl) {
-                                        const target = (currentSemiLogicMode === 'V20' ? d.target_A : d.target_B);
-                                        const avgUsage = (semiAvgUsageOverrides.get(codeKey) || d.avgUsage || 0);
-                                        
-                                        // 소진 계산: stock_timing 반영
-                                        let burnUntilOddEnd = 0;
-                                        let curr = new Date(refMonth + "-01");
-                                        if(timing === "end") curr.setMonth(curr.getMonth() + 1); // 월말재고면 기준월 제외
-                                        
-                                        const limitDate = new Date(pairEvenMonth + "-01");
-                                        while(curr < limitDate) {
-                                                burnUntilOddEnd += avgUsage;
-                                                curr.setMonth(curr.getMonth() + 1);
-                                        }
-                                        const pend = pairBaseTl.pendingMap[codeKey] || 0;
-                                        // 공식 적용: / 2
-                                        finalPlan = Math.floor(Math.max(0, (target + burnUntilOddEnd - d.stock - pend) / 2) / d.unit) * d.unit;
-                                } else {
-                                        finalPlan = (currentSemiLogicMode === 'V20' ? d.plan_A : d.plan_B);
-                                }
-                        }
-
-                        d._displayPlan = finalPlan;
-                        tQ += finalPlan; tA += (finalPlan * d.price);
-
-                        const tr = document.createElement('tr');
-                        const s_val = (currentSemiLogicMode === 'V20' ? d.safety_A : d.safety_B);
-                        const t_val = (currentSemiLogicMode === 'V20' ? d.target_A : d.target_B);
-                        tr.innerHTML = `<td>${d.code}</td><td>${d.spec}</td><td>${d.price.toLocaleString()}</td><td class="fw-bold">${d.stock.toLocaleString()}</td><td class="text-info bg-light"><input type="number" class="form-control form-control-sm" style="width:80px; text-align:center;" value="${semiAvgUsageOverrides.get(codeKey) || d.avgUsage || 0}" onchange="updateSemiAvgUsage('${d.code}', this.value)"></td><td class="bg-info text-white">${(d.avg3mUsage || 0).toLocaleString()}</td><td class="bg-warning text-dark">${(d.avg3mPlan || 0).toLocaleString()}</td><td>${s_val.toLocaleString()}</td><td>${t_val.toLocaleString()}</td><td class="bg-light"><input type="number" class="form-control form-control-sm" style="width:60px; text-align:center;" value="${d.unit}" onchange="updateSemiUnit('${d.code}', this.value)"></td><td class="text-danger fw-bold">${(d.burn || 0).toLocaleString()}</td><td class="text-primary fw-bold">${(d.pending || 0).toLocaleString()}</td><td class="table-primary"><input type="number" class="plan-input" value="${finalPlan}" onchange="updateSemiPlanQty('${d.code}', this.value)"><button class="btn btn-sm btn-outline-primary ms-1" onclick="copySemiPlanToNextMonth('${d.code}')">📋</button></td><td class="text-success fw-bold">${(finalPlan * d.price).toLocaleString()}</td>`;
-                        body.appendChild(tr);
-                });
-
-                if(document.getElementById('semi_sum_qty_box')) document.getElementById('semi_sum_qty_box').innerText = `수량: ${tQ.toLocaleString()} EA`;
-                if(document.getElementById('semi_sum_amt_box')) document.getElementById('semi_sum_amt_box').innerText = `금액: ${tA.toLocaleString()} 원`;
-                let tStockA = 0;
-                // tStockA 계산: 반제품 목록의 현재고 * 단가 합산
-                if(Array.isArray(semiProductData)) {
-                        tStockA = semiProductData.reduce((sum, d) => sum + (Number(d.stock || 0) * Number(d.price || 0)), 0);
-                }
-                if(document.getElementById('semi_sum_stock_amt_box')) document.getElementById('semi_sum_stock_amt_box').innerText = `현재고: ${tStockA.toLocaleString()} 원`;
-        } catch(e) { console.error("반제품 렌더링 오류:", e); }
+    } catch(e) { console.error("반제품 렌더링 오류:", e); }
 }
 
 function updateSemiPlanQty(code, value) {
