@@ -1828,20 +1828,23 @@ async function getTimelineGap(r, p, isSemi = false) {
         if(!t || !r || !p) return { gap: 0, pendingMap: {}, plan3mMap: {} }; 
 
         const s = new Date(r + "-01"), e = new Date(p + "-01");
+        // 기준월과 계획월 사이의 개월 수 계산
         const gap = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()); 
         const pm = {}, plan3mMap = {}, plan3mData = [];
         
         if(gap >= 0) {
             const monthsToLoad = [];
             let c = new Date(s);
+            // '월말 재고' 기준일 경우 기준월 소진을 제외하므로 기준월 계획은 기입고에 포함하지 않음
             if(timing === "end") c.setMonth(c.getMonth() + 1);
 
+            // 실재고 기준월부터 계획월 이전달까지 모든 계획 데이터를 수집함
             while(c < e) {
                 monthsToLoad.push(c.toISOString().substring(0, 7));
                 c.setMonth(c.getMonth() + 1);
             }
 
-            // [핵심] isSemi 인자를 넘겨서 반제품 파일을 읽게 함
+            // 각 월별로 저장된 모든 형태의 계획 파일을 비동기로 로드
             const monthlyResults = await Promise.all(monthsToLoad.map(m => loadPlanDataForMonth(m, true, isSemi)));
             
             monthlyResults.forEach((monthMap, idx) => {
@@ -1849,12 +1852,22 @@ async function getTimelineGap(r, p, isSemi = false) {
                 Object.entries(monthMap).forEach(([code, qty]) => {
                     if(qty > 0) {
                         const codeKey = String(code).trim();
+                        // 기입고 맵에 누적 합산
                         pm[codeKey] = (pm[codeKey] || 0) + qty;
+                        
+                        // 코드 변형(숫자형 등)에 대한 매칭 데이터도 함께 생성
+                        const codeNum = String(Number(codeKey));
+                        if(codeNum !== codeKey) {
+                            pm[codeNum] = (pm[codeNum] || 0) + qty;
+                        }
+
+                        // 최근 3개월 추이 계산용 데이터 저장
                         plan3mData.push({ code: codeKey, qty, month: monthStr });
                     }
                 });
             });
 
+            // 최근 3개월 계획 평균 계산 로직
             plan3mData.sort((a, b) => b.month.localeCompare(a.month));
             const codeMap = {};
             plan3mData.forEach(({ code, qty }) => {
@@ -1863,8 +1876,11 @@ async function getTimelineGap(r, p, isSemi = false) {
             });
             Object.keys(codeMap).forEach(c => { plan3mMap[c] = codeMap[c].reverse(); });
         }
+        
+        console.log(`[기입고 로드 완료] 분석 범위: ${r} ~ ${p}, 수집된 월: ${gap}개월`);
         return { gap, pendingMap: pm, plan3mMap }; 
     } catch(e) { 
+        console.error("TimelineGap 로드 실패:", e);
         return { gap: 0, pendingMap: {}, plan3mMap: {} }; 
     }
 }
