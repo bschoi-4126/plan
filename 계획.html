@@ -68,7 +68,7 @@
 
 <div class="container-fluid p-4">
         <div class="header-card">
-                <h4 class="fw-bold text-primary mb-3">🚀 PPS AI Intelligence V41</h4>
+                <h4 class="fw-bold text-primary mb-3">🚀 PPS AI Intelligence</h4>
                 <div class="github-config row g-3 align-items-center">
                         <div class="col-md-3"><label class="fw-bold mb-1 small">🔑 GitHub Token</label><input type="password" id="gh_token" class="form-control form-control-sm" onchange="saveGitHubToken()" oninput="saveGitHubToken()"></div>
                         <div class="col-md-2"><label class="fw-bold mb-1 small">📅 실재고 기준월</label><input type="month" id="ref_month" class="form-control form-control-sm" onchange="saveRefMonth()"></div>
@@ -520,7 +520,7 @@ async function checkForUpdates() {
         }
 }
 
-const DB_NAME = "PPS_DB_V41"; const STORE_NAME = "CachedFiles";
+const DB_NAME = "PPS_DB_V42"; const STORE_NAME = "CachedFiles";
 const openDB = () => new Promise((res, rej) => { const req = indexedDB.open(DB_NAME, 1); req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME); req.onsuccess = e => res(e.target.result); req.onerror = e => rej(e); });
 async function saveToDB(k, v) { const db = await openDB(); const tx = db.transaction(STORE_NAME, "readwrite"); tx.objectStore(STORE_NAME).put(v, k); }
 async function loadFromDB(k) { try { const db = await openDB(); return new Promise(res => { const r = db.transaction(STORE_NAME).objectStore(STORE_NAME).get(k); r.onsuccess = () => res(r.result); r.onerror = () => res(null); }); } catch(e) { return null; } }
@@ -1834,7 +1834,6 @@ async function getTimelineGap(r, p, isSemi = false) {
         if(gap >= 0) {
             const monthsToLoad = [];
             let c = new Date(s);
-            // 월말재고 기준이면 기준월(r)의 계획은 이미 입고된 것으로 간주하여 제외
             if(timing === "end") c.setMonth(c.getMonth() + 1);
 
             while(c < e) {
@@ -1842,24 +1841,20 @@ async function getTimelineGap(r, p, isSemi = false) {
                 c.setMonth(c.getMonth() + 1);
             }
 
-            // [제민 패치] 각 월별로 통합 로드 함수를 호출하여 완벽하게 합산
-            const monthlyResults = await Promise.all(monthsToLoad.map(m => loadPlanDataForMonth(m, true)));
+            // [핵심] isSemi 인자를 넘겨서 반제품 파일을 읽게 함
+            const monthlyResults = await Promise.all(monthsToLoad.map(m => loadPlanDataForMonth(m, true, isSemi)));
             
             monthlyResults.forEach((monthMap, idx) => {
                 const monthStr = monthsToLoad[idx];
                 Object.entries(monthMap).forEach(([code, qty]) => {
                     if(qty > 0) {
                         const codeKey = String(code).trim();
-                        // 전체 기입고 맵에 누적 합산 (중복 방지 로직 포함)
                         pm[codeKey] = (pm[codeKey] || 0) + qty;
-                        
-                        // 최근 3개월 계획 평균 계산용 데이터 저장
                         plan3mData.push({ code: codeKey, qty, month: monthStr });
                     }
                 });
             });
 
-            // 최근 3개월 평균용 데이터 정렬 및 가공
             plan3mData.sort((a, b) => b.month.localeCompare(a.month));
             const codeMap = {};
             plan3mData.forEach(({ code, qty }) => {
@@ -1868,11 +1863,8 @@ async function getTimelineGap(r, p, isSemi = false) {
             });
             Object.keys(codeMap).forEach(c => { plan3mMap[c] = codeMap[c].reverse(); });
         }
-        
-        console.log(`[기입고 계산 완료] 기준:${r} -> 계획:${p}, 대상월수:${gap}, 합산항목:${Object.keys(pm).length}건`);
         return { gap, pendingMap: pm, plan3mMap }; 
     } catch(e) { 
-        console.error("타임라인 계산 오류:", e); 
         return { gap: 0, pendingMap: {}, plan3mMap: {} }; 
     }
 }
@@ -3880,24 +3872,53 @@ function renderSemiAnnual() {
 }
 
 async function saveSemiToGithub() {
-        try {
-                const t = document.getElementById('gh_token')?.value, m = document.getElementById('semi_plan_month')?.value;
-                if(!t || !m) return alert("GitHub 정보 확인!");
-                
-                const target = semiProductData.filter(d => (d._displayPlan || 0) >= 0).map(d => ({ 
-                        code: d.code, 
-                        planQty: d._displayPlan || 0, // 계산된 최종계획 수량만 저장 (기입고 무시)
-                        spec: d.spec || "", price: d.price || 0, stock: d.stock || 0,
-                        unit: d.unit || 10, type: d.type || "ALL"
-                }));
-                
-                if(target.length === 0) return alert("저장할 데이터가 없습니다.");
-                const content = btoa(unescape(encodeURIComponent(JSON.stringify(target))));
-                const path = `data/semi_plan_${m}.json`; let sha = "";
-                try { const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } }); if(res.ok) sha = (await res.json()).sha; } catch(e) {}
-                await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { method: "PUT", headers: { Authorization: `token ${t}` }, body: JSON.stringify({ message: `${m} 반제품 계획 저장`, content, sha }) });
-                alert(`${m} 반제품 계획 저장 완료!`);
-        } catch(e) { console.error("반제품 저장 오류:", e); }
+    try {
+        const t = document.getElementById('gh_token')?.value, m = document.getElementById('semi_plan_month')?.value;
+        if(!t || !m) return alert("GitHub 정보 확인!");
+        
+        const target = semiProductData.filter(d => (d._displayPlan || 0) >= 0).map(d => ({ 
+            code: d.code, planQty: d._displayPlan || 0,
+            spec: d.spec || "", price: d.price || 0, stock: d.stock || 0,
+            unit: d.unit || 10, type: d.type || "ALL"
+        }));
+        
+        if(target.length === 0) return alert("저장할 데이터가 없습니다.");
+        const content = btoa(unescape(encodeURIComponent(JSON.stringify(target))));
+
+        // [핵심] 2026년 5월 이후 2개월 묶음 저장 로직 추가
+        let monthsToSave = [m];
+        const [year, monthNum] = m.split('-').map(Number);
+        if(year === 2026 && monthNum >= 5) {
+            const isOdd = (monthNum % 2 !== 0);
+            const partnerNum = isOdd ? monthNum + 1 : monthNum - 1;
+            if(partnerNum >= 1 && partnerNum <= 12) {
+                monthsToSave.push(`${year}-${String(partnerNum).padStart(2, '0')}`);
+            }
+        }
+
+        const loadingEl = document.getElementById('loading');
+        if(loadingEl) loadingEl.style.display = 'flex';
+
+        for (const targetMonth of monthsToSave) {
+            const path = `data/semi_plan_${targetMonth}.json`;
+            let sha = "";
+            try { 
+                const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { headers: { Authorization: `token ${t}` } }); 
+                if(res.ok) sha = (await res.json()).sha; 
+            } catch(e) {}
+            await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { 
+                method: "PUT", 
+                headers: { Authorization: `token ${t}` }, 
+                body: JSON.stringify({ message: `${targetMonth} 반제품 계획 저장`, content, sha }) 
+            });
+        }
+
+        if(loadingEl) loadingEl.style.display = 'none';
+        alert(monthsToSave.length > 1 ? `✅ 반제품 2개월(${monthsToSave.join(', ')}) 저장 완료!` : `✅ ${m} 반제품 저장 완료!`);
+    } catch(e) { 
+        if(document.getElementById('loading')) document.getElementById('loading').style.display = 'none';
+        console.error("저장 오류:", e); 
+    }
 }
 
 async function loadSemiFromGithub() {
@@ -4454,18 +4475,21 @@ function renderComparison() {
 let planDataCache = {}; // { "YYYY-MM": { code: planQty } }
 let uploadedPlanDataByCode = {}; // { code: { "YYYY-MM": planQty } } - 엑셀 업로드로 읽은 월별 계획 데이터
 
-async function loadPlanDataForMonth(month, forceReload = false) {
-    if(!forceReload && planDataCache[month] && Object.keys(planDataCache[month]).length > 0) return planDataCache[month];
+async function loadPlanDataForMonth(month, forceReload = false, isSemi = false) {
+    const cacheKey = isSemi ? `semi_${month}` : month;
+    if(!forceReload && planDataCache[cacheKey] && Object.keys(planDataCache[cacheKey]).length > 0) return planDataCache[cacheKey];
     
     try {
         const t = document.getElementById('gh_token')?.value;
         if(!t) return {};
 
-        // [제민 패치] 해당 월의 모든 파생 파일 형식을 동시에 조회
-        const suffixes = ['', '_CN', '_NO_CN', '_ALL'];
+        // 반제품은 접미사 없이 단일 파일, 완제품은 4가지 접미사 모두 조회
+        const suffixes = isSemi ? [''] : ['', '_CN', '_NO_CN', '_ALL'];
+        const prefix = isSemi ? 'semi_plan_' : 'plan_';
+
         const fetchPromises = suffixes.map(async (suffix) => {
             try {
-                const path = `data/plan_${month}${suffix}.json`;
+                const path = `data/${prefix}${month}${suffix}.json`;
                 const res = await fetch(`https://api.github.com/repos/${REPO_PATH}/contents/${path}`, { 
                     headers: { Authorization: `token ${t}` } 
                 });
@@ -4480,7 +4504,6 @@ async function loadPlanDataForMonth(month, forceReload = false) {
         const results = await Promise.all(fetchPromises);
         const mergedPlanMap = {};
 
-        // 모든 파일에서 읽어온 데이터를 통합 (같은 코드가 여러 파일에 있으면 수량을 합산)
         results.forEach(data => {
             if(data && Array.isArray(data)) {
                 data.forEach(item => {
@@ -4488,22 +4511,16 @@ async function loadPlanDataForMonth(month, forceReload = false) {
                     if(code) {
                         const qty = Number(item.planQty || 0);
                         mergedPlanMap[code] = (mergedPlanMap[code] || 0) + qty;
-                        
-                        // 매칭율을 높이기 위해 숫자형 코드도 함께 저장
-                        const codeNum = String(Number(code));
-                        if(codeNum !== code) {
-                            mergedPlanMap[codeNum] = (mergedPlanMap[codeNum] || 0) + qty;
-                        }
                     }
                 });
             }
         });
 
-        planDataCache[month] = mergedPlanMap;
+        planDataCache[cacheKey] = mergedPlanMap;
         return mergedPlanMap;
 
     } catch(e) {
-        console.warn(`[통합 로드 실패] ${month}:`, e);
+        console.warn(`[로드 실패] ${month}:`, e);
         return {};
     }
 }
